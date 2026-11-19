@@ -1,0 +1,112 @@
+﻿{
+    "Date":  "2026-11-19T05:17:15.4221110+03:00",
+    "Evidence":  "Native API measurements with manual close-button input",
+    "Criteria":  {
+                     "StartupFocus":  "FAIL",
+                     "HorizontalCenter":  "PASS",
+                     "TopEdge":  "PASS",
+                     "Borderless":  "FAIL",
+                     "Topmost":  "PASS",
+                     "CloseButtonAndCleanExit":  "PASS",
+                     "WorkAreaUnchanged":  "PASS"
+                 },
+    "Environment":  {
+                        "Windows":  "26H2",
+                        "Build":  "26300.9974",
+                        "Architecture":  "x64",
+                        "Executable":  "C:\\Users\\Nimox\\OneDrive\\Documents\\Island\\src\\IslandTaskbar\\bin\\x64\\Debug\\net10.0-windows10.0.26100.0\\IslandTaskbar.exe"
+                    },
+    "Focus":  {
+                  "Before":  {
+                                 "Handle":  100927518,
+                                 "ProcessId":  9588,
+                                 "ProcessName":  "WindowsTerminal"
+                             },
+                  "Samples":  [
+                                  {
+                                      "Handle":  100927518,
+                                      "ProcessId":  9588,
+                                      "ProcessName":  "WindowsTerminal"
+                                  },
+                                  {
+                                      "Handle":  8980056,
+                                      "ProcessId":  14448,
+                                      "ProcessName":  "explorer"
+                                  },
+                                  {
+                                      "Handle":  122095354,
+                                      "ProcessId":  15712,
+                                      "ProcessName":  "IslandTaskbar"
+                                  }
+                              ],
+                  "SampleCount":  72,
+                  "SamplingIntervalMilliseconds":  50,
+                  "TestBecameForeground":  true,
+                  "PreviousWindowRetainedForeground":  false
+              },
+    "Geometry":  {
+                     "WindowRect":  {
+                                        "Left":  640,
+                                        "Top":  0,
+                                        "Right":  1280,
+                                        "Bottom":  240,
+                                        "Width":  640,
+                                        "Height":  240
+                                    },
+                     "VisibleFrameRect":  {
+                                              "Left":  640,
+                                              "Top":  0,
+                                              "Right":  1280,
+                                              "Bottom":  240,
+                                              "Width":  640,
+                                              "Height":  240
+                                          },
+                     "PrimaryOuterBounds":  {
+                                                "Left":  0,
+                                                "Top":  0,
+                                                "Right":  1920,
+                                                "Bottom":  1080,
+                                                "Width":  1920,
+                                                "Height":  1080
+                                            },
+                     "HorizontalCenterOffsetPixels":  0,
+                     "TopOffsetPixels":  0,
+                     "WindowDpi":  120,
+                     "CaptionOrSizingBorderPresent":  true,
+                     "TopmostStylePresent":  true
+                 },
+    "FinalWindowClose":  {
+                             "ProcessId":  15712,
+                             "ExitCode":  0
+                         },
+    "WorkArea":  {
+                     "BeforeLaunch":  {
+                                          "Left":  0,
+                                          "Top":  0,
+                                          "Right":  1920,
+                                          "Bottom":  1080,
+                                          "Width":  1920,
+                                          "Height":  1080
+                                      },
+                     "DuringWindow":  {
+                                          "Left":  0,
+                                          "Top":  0,
+                                          "Right":  1920,
+                                          "Bottom":  1080,
+                                          "Width":  1920,
+                                          "Height":  1080
+                                      },
+                     "AfterClose":  {
+                                        "Left":  0,
+                                        "Top":  0,
+                                        "Right":  1920,
+                                        "Bottom":  1080,
+                                        "Width":  1920,
+                                        "Height":  1080
+                                    },
+                     "PrimaryDisplayUnchanged":  true
+                 },
+    "RemainingTestProcessIds":  [
+
+                                ]
+}
