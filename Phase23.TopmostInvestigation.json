@@ -1,0 +1,681 @@
+{
+  "Phase": "2.3",
+  "Status": "BLOCKED: exact root cause not identified; no implementation fix applied.",
+  "EvidenceDate": "2026-11-19T19:29:42.0365316+03:00",
+  "ApplicationSourceChanges": "None. All 17 source hashes match the pre-investigation baseline.",
+  "DebugAssemblySHA256": "593174AADD31B457A2852A5B94341136897FD4F1DA7B089D5BAFD9DB37B2427D",
+  "Build": {
+    "DebugX64": "PASS",
+    "ReleaseX64": "PASS",
+    "Warnings": 0,
+    "Errors": 0,
+    "Commands": [
+      "dotnet build .\\IslandTaskbar.sln -c Debug -p:Platform=x64 --no-restore",
+      "dotnet build .\\IslandTaskbar.sln -c Release -p:Platform=x64 --no-restore"
+    ]
+  },
+  "ConfirmedFindings": [
+    "The same Debug assembly was observed with EXSTYLE 0x108 above maximized foreground Notepad, and with EXSTYLE 0x100 in a failing verifier launch.",
+    "Earlier failing traces were already non-topmost immediately after the SDK setter, before app region application; this does not establish SetWindowRgn as the cause.",
+    "Native startup debugger trace confirmed SDK request HWND_TOPMOST (-1), flags 0x13, for the correct island HWND.",
+    "In the stepped startup, NtUserSetWindowPos returned TRUE and EXSTYLE was 0x108; it remained 0x108 after the empty region and both visible-region calls.",
+    "A separate callback observation retained the same WINDOWPOS request across WM_WINDOWPOSCHANGING and retained 0x108 across WM_WINDOWPOSCHANGED.",
+    "Both observed launch contexts had job UI restrictions 0, medium integrity RID8192, identical PowerShell versions/bitness, and no compatibility layer.",
+    "Changing parent/query DPI awareness did not isolate the failure.",
+    "Windhawk engine was loaded; its sole configured mod included explorer.exe, and no mod was observed loaded in IslandTaskbar. No causation established.",
+    "Debugger pausing changed the observed outcome; timing-sensitive source of the difference remains unknown."
+  ],
+  "SuccessfulControlledObservation": {
+    "Date": "2026-11-19T19:20:03.3897413+03:00",
+    "ProcessId": 17896,
+    "HWND": 159188602,
+    "ExtendedStyle": 264,
+    "ForegroundProcessId": 5452,
+    "ForegroundName": "Notepad",
+    "ForegroundMaximized": true,
+    "InsidePointOwner": 17896,
+    "Window": {
+      "Left": 640,
+      "Top": 0,
+      "Right": 1280,
+      "Bottom": 240
+    }
+  },
+  "ToolLaunchContext": {
+    "Date": "2026-11-19T19:33:58.3984565+03:00",
+    "ProcessId": 6380,
+    "ParentProcessId": 3384,
+    "ParentName": "powershell.exe",
+    "SessionId": 1,
+    "PowerShellVersion": "5.1.26100.9818",
+    "Is64Bit": true,
+    "InJob": true,
+    "JobQuerySucceeded": true,
+    "JobUIFlags": 0,
+    "JobQueryError": 0,
+    "IntegrityRid": 8192,
+    "CompatibilityLayer": null
+  },
+  "UserLaunchContext": {
+    "Date": "2026-11-19T19:37:05.0744982+03:00",
+    "ProcessId": 21084,
+    "ParentProcessId": 17808,
+    "ParentName": "powershell.exe",
+    "SessionId": 1,
+    "PowerShellVersion": "5.1.26100.9818",
+    "Is64Bit": true,
+    "InJob": true,
+    "JobQuerySucceeded": true,
+    "JobUIFlags": 0,
+    "JobQueryError": 0,
+    "IntegrityRid": 8192,
+    "CompatibilityLayer": null
+  },
+  "LatestRawRuntime": {
+    "Phase": "2.3",
+    "Date": "2026-11-19T19:29:42.0365316+03:00",
+    "Criteria": {
+      "StartupFocusPreserved": "FAIL",
+      "CenteredCompactTopBounds": "PASS",
+      "NativeRoundedOutline": "FAIL",
+      "ExteriorPointRouting": "FAIL",
+      "InteriorPointRouting": "FAIL",
+      "TopmostAboveNotepad": "FAIL",
+      "VisibleIslandInputRouting": "PASS",
+      "ExteriorClickAndFocus": "PASS",
+      "CleanShutdown": "PASS",
+      "WorkAreaUnchanged": "PASS"
+    },
+    "Artifact": {
+      "Executable": "C:\\Users\\Nimox\\OneDrive\\Documents\\Island\\src\\IslandTaskbar\\bin\\x64\\Debug\\net10.0-windows10.0.26100.0\\IslandTaskbar.exe",
+      "AssemblySHA256": "593174AADD31B457A2852A5B94341136897FD4F1DA7B089D5BAFD9DB37B2427D"
+    },
+    "InitialRoutingObservation": {
+      "WindowVisible": true,
+      "InsidePointOwner": 5452,
+      "ExpectedOwner": 20020
+    },
+    "StartupFocus": {
+      "Before": {
+        "Handle": 2820180,
+        "ProcessId": 5452,
+        "Name": "Notepad"
+      },
+      "After": {
+        "Handle": 1575218,
+        "ProcessId": 672,
+        "Name": "Antigravity IDE"
+      },
+      "ChangesObserved": [
+        {
+          "Handle": 8980056,
+          "ProcessId": 14448,
+          "Name": "explorer"
+        },
+        {
+          "Handle": 1575218,
+          "ProcessId": 672,
+          "Name": "Antigravity IDE"
+        }
+      ],
+      "ObservationSeconds": 10,
+      "PollIntervalMilliseconds": 100
+    },
+    "Geometry": {
+      "Window": {
+        "Left": 640,
+        "Top": 0,
+        "Right": 1280,
+        "Bottom": 240,
+        "Width": 640,
+        "Height": 240
+      },
+      "PrimaryOuterBounds": {
+        "Left": 0,
+        "Top": 0,
+        "Right": 1920,
+        "Bottom": 1080,
+        "Width": 1920,
+        "Height": 1080
+      },
+      "RegionBox": {
+        "Left": 33,
+        "Top": 3,
+        "Right": 607,
+        "Bottom": 206,
+        "Width": 574,
+        "Height": 203
+      },
+      "RegionType": 3,
+      "CenterOffsetPixels": 0,
+      "TopOffsetPixels": 0
+    },
+    "Routing": [
+      {
+        "Name": "Inside",
+        "X": 960,
+        "Y": 104,
+        "InsideRegion": true,
+        "OwnerProcessId": 672,
+        "ExpectedOwner": 20020,
+        "Pass": false
+      },
+      {
+        "Name": "Left margin",
+        "X": 656,
+        "Y": 157,
+        "InsideRegion": false,
+        "OwnerProcessId": 672,
+        "ExpectedOwner": 5452,
+        "Pass": false
+      },
+      {
+        "Name": "Right margin",
+        "X": 1264,
+        "Y": 157,
+        "InsideRegion": false,
+        "OwnerProcessId": 672,
+        "ExpectedOwner": 5452,
+        "Pass": false
+      },
+      {
+        "Name": "Below island",
+        "X": 960,
+        "Y": 223,
+        "InsideRegion": false,
+        "OwnerProcessId": 672,
+        "ExpectedOwner": 5452,
+        "Pass": false
+      },
+      {
+        "Name": "Lower-left corner cutout",
+        "X": 674,
+        "Y": 205,
+        "InsideRegion": false,
+        "OwnerProcessId": 672,
+        "ExpectedOwner": 5452,
+        "Pass": false
+      },
+      {
+        "Name": "Lower-right corner cutout",
+        "X": 1245,
+        "Y": 205,
+        "InsideRegion": false,
+        "OwnerProcessId": 672,
+        "ExpectedOwner": 5452,
+        "Pass": false
+      }
+    ],
+    "WindowIdentity": {
+      "MeasuredHandle": 5441766,
+      "RootHandle": 5441766,
+      "MeasuredClass": "WinUIDesktopWin32WindowClass",
+      "RootClass": "WinUIDesktopWin32WindowClass",
+      "MeasuredStyle": 340262912,
+      "RootExtendedStyle": 256
+    },
+    "ProcessWindows": [
+      {
+        "Handle": 5441766,
+        "Class": "WinUIDesktopWin32WindowClass",
+        "Visible": true,
+        "ExtendedStyle": 256
+      },
+      {
+        "Handle": 1245248,
+        "Class": "IME",
+        "Visible": false,
+        "ExtendedStyle": 8
+      }
+    ],
+    "Topmost": {
+      "ExtendedStyle": 256,
+      "Foreground": {
+        "Handle": 1575218,
+        "ProcessId": 672,
+        "Name": "Antigravity IDE"
+      },
+      "InsidePointOwner": 672
+    },
+    "InsideClick": {
+      "X": 1003,
+      "Y": 145,
+      "WithinWindowBounds": true,
+      "InsideRegion": true,
+      "PointOwnerProcessId": 20020,
+      "ForegroundAfter": {
+        "Handle": 5441766,
+        "ProcessId": 20020,
+        "Name": "IslandTaskbar"
+      }
+    },
+    "OutsideClick": {
+      "X": 938,
+      "Y": 226,
+      "WithinWindowBounds": true,
+      "InsideRegion": false,
+      "PointOwnerProcessId": 5452,
+      "ForegroundAfter": {
+        "Handle": 2820180,
+        "ProcessId": 5452,
+        "Name": "Notepad"
+      }
+    },
+    "TopmostAfterExteriorClick": {
+      "ExtendedStyle": 256,
+      "Foreground": {
+        "Handle": 2820180,
+        "ProcessId": 5452,
+        "Name": "Notepad"
+      },
+      "InsidePointOwner": 5452
+    },
+    "Exit": {
+      "ProcessId": 20020,
+      "ExitCode": 0,
+      "RemainingProcesses": []
+    },
+    "WindowTrace": [],
+    "WorkArea": {
+      "Before": {
+        "Left": 0,
+        "Top": 0,
+        "Right": 1920,
+        "Bottom": 1080,
+        "Width": 1920,
+        "Height": 1080
+      },
+      "During": {
+        "Left": 0,
+        "Top": 0,
+        "Right": 1920,
+        "Bottom": 1080,
+        "Width": 1920,
+        "Height": 1080
+      },
+      "After": {
+        "Left": 0,
+        "Top": 0,
+        "Right": 1920,
+        "Bottom": 1080,
+        "Width": 1920,
+        "Height": 1080
+      }
+    },
+    "Environment": {
+      "WindowsBuild": "26300.9974",
+      "Architecture": "x64",
+      "UnderlyingApplication": "Notepad",
+      "UnderlyingProcessId": 5452
+    }
+  },
+  "EarlierFailure": {
+    "Phase": "2.3",
+    "Date": "2026-11-19T07:53:07.3162631+03:00",
+    "Criteria": {
+      "StartupFocusPreserved": "PASS",
+      "CenteredCompactTopBounds": "PASS",
+      "NativeRoundedOutline": "PASS",
+      "ExteriorPointRouting": "PASS",
+      "InteriorPointRouting": "FAIL",
+      "TopmostAboveNotepad": "FAIL",
+      "VisibleIslandInputRouting": "PASS",
+      "ExteriorClickAndFocus": "PASS",
+      "CleanShutdown": "PASS",
+      "WorkAreaUnchanged": "PASS"
+    },
+    "Artifact": {
+      "Executable": "C:\\Users\\Nimox\\OneDrive\\Documents\\Island\\src\\IslandTaskbar\\bin\\x64\\Debug\\net10.0-windows10.0.26100.0\\IslandTaskbar.exe",
+      "AssemblySHA256": "593174AADD31B457A2852A5B94341136897FD4F1DA7B089D5BAFD9DB37B2427D"
+    },
+    "InitialRoutingObservation": {
+      "WindowVisible": true,
+      "InsidePointOwner": 18948,
+      "ExpectedOwner": 19072
+    },
+    "StartupFocus": {
+      "Before": {
+        "Handle": 9634896,
+        "ProcessId": 18948,
+        "Name": "Notepad"
+      },
+      "After": {
+        "Handle": 9634896,
+        "ProcessId": 18948,
+        "Name": "Notepad"
+      },
+      "ChangesObserved": [],
+      "ObservationSeconds": 10,
+      "PollIntervalMilliseconds": 100
+    },
+    "Geometry": {
+      "Window": {
+        "Left": 640,
+        "Top": 0,
+        "Right": 1280,
+        "Bottom": 240,
+        "Width": 640,
+        "Height": 240
+      },
+      "PrimaryOuterBounds": {
+        "Left": 0,
+        "Top": 0,
+        "Right": 1920,
+        "Bottom": 1080,
+        "Width": 1920,
+        "Height": 1080
+      },
+      "RegionBox": {
+        "Left": 33,
+        "Top": 3,
+        "Right": 607,
+        "Bottom": 206,
+        "Width": 574,
+        "Height": 203
+      },
+      "RegionType": 3,
+      "CenterOffsetPixels": 0,
+      "TopOffsetPixels": 0
+    },
+    "Routing": [
+      {
+        "Name": "Inside",
+        "X": 960,
+        "Y": 104,
+        "InsideRegion": true,
+        "OwnerProcessId": 18948,
+        "ExpectedOwner": 19072,
+        "Pass": false
+      },
+      {
+        "Name": "Left margin",
+        "X": 656,
+        "Y": 157,
+        "InsideRegion": false,
+        "OwnerProcessId": 18948,
+        "ExpectedOwner": 18948,
+        "Pass": true
+      },
+      {
+        "Name": "Right margin",
+        "X": 1264,
+        "Y": 157,
+        "InsideRegion": false,
+        "OwnerProcessId": 18948,
+        "ExpectedOwner": 18948,
+        "Pass": true
+      },
+      {
+        "Name": "Below island",
+        "X": 960,
+        "Y": 223,
+        "InsideRegion": false,
+        "OwnerProcessId": 18948,
+        "ExpectedOwner": 18948,
+        "Pass": true
+      },
+      {
+        "Name": "Lower-left corner cutout",
+        "X": 674,
+        "Y": 205,
+        "InsideRegion": false,
+        "OwnerProcessId": 18948,
+        "ExpectedOwner": 18948,
+        "Pass": true
+      },
+      {
+        "Name": "Lower-right corner cutout",
+        "X": 1245,
+        "Y": 205,
+        "InsideRegion": false,
+        "OwnerProcessId": 18948,
+        "ExpectedOwner": 18948,
+        "Pass": true
+      }
+    ],
+    "WindowIdentity": {
+      "MeasuredHandle": 21890878,
+      "RootHandle": 21890878,
+      "MeasuredClass": "WinUIDesktopWin32WindowClass",
+      "RootClass": "WinUIDesktopWin32WindowClass",
+      "MeasuredStyle": 340262912,
+      "RootExtendedStyle": 256
+    },
+    "ProcessWindows": [
+      {
+        "Handle": 21890878,
+        "Class": "WinUIDesktopWin32WindowClass",
+        "Visible": true,
+        "ExtendedStyle": 256
+      },
+      {
+        "Handle": 5769296,
+        "Class": "IME",
+        "Visible": false,
+        "ExtendedStyle": 8
+      }
+    ],
+    "Topmost": {
+      "ExtendedStyle": 256,
+      "Foreground": {
+        "Handle": 9634896,
+        "ProcessId": 18948,
+        "Name": "Notepad"
+      },
+      "InsidePointOwner": 18948
+    },
+    "InsideClick": {
+      "X": 949,
+      "Y": 115,
+      "WithinWindowBounds": true,
+      "InsideRegion": true,
+      "PointOwnerProcessId": 19072,
+      "ForegroundAfter": {
+        "Handle": 21890878,
+        "ProcessId": 19072,
+        "Name": "IslandTaskbar"
+      }
+    },
+    "OutsideClick": {
+      "X": 936,
+      "Y": 219,
+      "WithinWindowBounds": true,
+      "InsideRegion": false,
+      "PointOwnerProcessId": 18948,
+      "ForegroundAfter": {
+        "Handle": 9634896,
+        "ProcessId": 18948,
+        "Name": "Notepad"
+      }
+    },
+    "TopmostAfterExteriorClick": {
+      "ExtendedStyle": 256,
+      "Foreground": {
+        "Handle": 9634896,
+        "ProcessId": 18948,
+        "Name": "Notepad"
+      },
+      "InsidePointOwner": 18948
+    },
+    "Exit": {
+      "ProcessId": 19072,
+      "ExitCode": 0,
+      "RemainingProcesses": []
+    },
+    "WindowTrace": [],
+    "WorkArea": {
+      "Before": {
+        "Left": 0,
+        "Top": 0,
+        "Right": 1920,
+        "Bottom": 1080,
+        "Width": 1920,
+        "Height": 1080
+      },
+      "During": {
+        "Left": 0,
+        "Top": 0,
+        "Right": 1920,
+        "Bottom": 1080,
+        "Width": 1920,
+        "Height": 1080
+      },
+      "After": {
+        "Left": 0,
+        "Top": 0,
+        "Right": 1920,
+        "Bottom": 1080,
+        "Width": 1920,
+        "Height": 1080
+      }
+    },
+    "Environment": {
+      "WindowsBuild": "26300.9974",
+      "Architecture": "x64",
+      "UnderlyingApplication": "Notepad",
+      "UnderlyingProcessId": 18948
+    }
+  },
+  "Regressions": {
+    "TopmostBeforeAndAfterNotepad": {
+      "Result": "FAIL",
+      "Evidence": "Latest normal verifier root EXSTYLE 0x100; post-exterior-click interior point returned Notepad."
+    },
+    "CompactCenteredPosition": {
+      "Result": "PASS",
+      "Evidence": "640x240 HWND at (640,0), primary bounds1920x1080, zero center/top offsets."
+    },
+    "ExteriorClickThrough": {
+      "Result": "PASS",
+      "Evidence": {
+        "X": 938,
+        "Y": 226,
+        "WithinWindowBounds": true,
+        "InsideRegion": false,
+        "PointOwnerProcessId": 5452,
+        "ForegroundAfter": {
+          "Handle": 2820180,
+          "ProcessId": 5452,
+          "Name": "Notepad"
+        }
+      }
+    },
+    "ExteriorFocus": {
+      "Result": "PASS",
+      "Evidence": "Outside click made Notepad foreground."
+    },
+    "StartupFocus": {
+      "Result": "FAIL",
+      "Evidence": "Verifier recorded Explorer then Antigravity IDE foreground; attribution to app versus test input remains NOT VERIFIED."
+    },
+    "NativeRegionGeometry": {
+      "Result": "PASS",
+      "Evidence": "Complex region type3; tested corner cutouts and exterior points were outside region. This establishes geometry only."
+    },
+    "RoundedVisualAppearance": {
+      "Result": "NOT VERIFIED",
+      "Evidence": "Fresh visual confirmation was requested but not supplied. Prior Phase2.3 visual confirmation is retained in the earlier report."
+    },
+    "TransparentVisualExterior": {
+      "Result": "NOT VERIFIED",
+      "Evidence": "Fresh visual confirmation was not supplied."
+    },
+    "VisibleIslandInputRouting": {
+      "Result": "PASS",
+      "Evidence": {
+        "X": 1003,
+        "Y": 145,
+        "WithinWindowBounds": true,
+        "InsideRegion": true,
+        "PointOwnerProcessId": 20020,
+        "ForegroundAfter": {
+          "Handle": 5441766,
+          "ProcessId": 20020,
+          "Name": "IslandTaskbar"
+        }
+      }
+    },
+    "CounterFeedback": {
+      "Result": "NOT VERIFIED",
+      "Evidence": "Latest console output does not independently confirm the UI counter."
+    },
+    "ExteriorPointRoutingAgainstNotepad": {
+      "Result": "NOT VERIFIED",
+      "RawScriptResult": "FAIL",
+      "Evidence": "IDE was foreground at initial sampling and owned these points; intended underlying Notepad setup did not hold."
+    },
+    "WorkAreaUnchanged": {
+      "Result": "PASS",
+      "Evidence": {
+        "Before": {
+          "Left": 0,
+          "Top": 0,
+          "Right": 1920,
+          "Bottom": 1080,
+          "Width": 1920,
+          "Height": 1080
+        },
+        "During": {
+          "Left": 0,
+          "Top": 0,
+          "Right": 1920,
+          "Bottom": 1080,
+          "Width": 1920,
+          "Height": 1080
+        },
+        "After": {
+          "Left": 0,
+          "Top": 0,
+          "Right": 1920,
+          "Bottom": 1080,
+          "Width": 1920,
+          "Height": 1080
+        }
+      }
+    },
+    "CloseButtonAndCleanShutdown": {
+      "Result": "PASS",
+      "Evidence": {
+        "ProcessId": 20020,
+        "ExitCode": 0,
+        "RemainingProcesses": []
+      }
+    },
+    "Screenshots": {
+      "Result": "NOT VERIFIED",
+      "Evidence": "Computer-use native pipe unavailable; recovery attempts failed."
+    },
+    "ReleaseRuntime": {
+      "Result": "NOT VERIFIED",
+      "Evidence": "Release built; interaction run used Debug."
+    }
+  },
+  "Blocker": {
+    "Command": "logman create trace IslandTaskbarTopmostDiagnostic -ow -o <diagnostic.etl> -p Microsoft-Windows-Win32k 0x20000000400 5 -ets",
+    "Result": "Access is denied. Try running this command as an administrator.",
+    "Impact": "The broader trace needed to attribute the timing-sensitive z-order change could not be collected in this session. Native target-process traces did not reproduce a region-call or observed callback overwrite.",
+    "NextRequiredEvidence": "An administrator Win32k window-position trace of a failing launch, including caller/timing data. No guessed app patch or acceptance claim."
+  },
+  "DiagnosticNotes": [
+    "No SDK/package versions, controller interfaces, window layout, taskbar, Explorer, AppBar, or later-phase features changed.",
+    "A native SetWindowPos call was used once as callback diagnostics after new evidence showed a correct SDK request but a non-topmost result; it was not reintroduced into application implementation.",
+    "Debug-heap tracing stopped in native heap-corruption detection before controller setup; usable traces used debugger -hd. This is not established as the topmost cause.",
+    "Microsoft-signed debugging tools were downloaded/extracted only under .diagnostics/phase23-topmost; no project dependency was added.",
+    "All owned diagnostic debugger/application processes were closed at end."
+  ],
+  "FilesCreated": [
+    "Inspect-Phase23Launch.ps1",
+    "Phase23.LaunchContext.json",
+    "Phase23.TopmostInvestigation.json",
+    ".diagnostics/phase23-topmost/"
+  ],
+  "ExistingReportFilesUpdated": [
+    "Phase23.RuntimeResults.json",
+    "Phase23.VerificationReport.json"
+  ],
+  "NativeTraceFiles": [
+    ".diagnostics/phase23-topmost/topmost-return.log",
+    ".diagnostics/phase23-topmost/windowing-trace-callback.log",
+    ".diagnostics/phase23-topmost/windowing-trace-noheap.log"
+  ]
+}

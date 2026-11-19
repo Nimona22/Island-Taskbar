@@ -1,0 +1,15 @@
+﻿{
+    "Date":  "2026-11-19T19:37:05.0744982+03:00",
+    "ProcessId":  21084,
+    "ParentProcessId":  17808,
+    "ParentName":  "powershell.exe",
+    "SessionId":  1,
+    "PowerShellVersion":  "5.1.26100.9818",
+    "Is64Bit":  true,
+    "InJob":  true,
+    "JobQuerySucceeded":  true,
+    "JobUIFlags":  0,
+    "JobQueryError":  0,
+    "IntegrityRid":  8192,
+    "CompatibilityLayer":  null
+}

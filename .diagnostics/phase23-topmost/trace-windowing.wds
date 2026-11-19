@@ -1,0 +1,4 @@
+.sympath C:\Users\Nimox\OneDrive\Documents\Island\.diagnostics\phase23-topmost\symbols
+bu win32u!NtUserSetWindowPos ".printf \"NT_SWP hwnd=%p insert=%p flags=%x\\n\", @rcx, @rdx, dwo(@rsp+0x38); k 4; gc"
+bu user32!SetWindowRgn ".printf \"RGN hwnd=%p region=%p redraw=%x\\n\", @rcx, @rdx, @r8; k 4; gc"
+g

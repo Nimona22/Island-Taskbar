@@ -1,0 +1,242 @@
+﻿{
+    "Phase":  "2.3",
+    "Date":  "2026-11-19T19:29:42.0365316+03:00",
+    "Criteria":  {
+                     "StartupFocusPreserved":  "FAIL",
+                     "CenteredCompactTopBounds":  "PASS",
+                     "NativeRoundedOutline":  "FAIL",
+                     "ExteriorPointRouting":  "FAIL",
+                     "InteriorPointRouting":  "FAIL",
+                     "TopmostAboveNotepad":  "FAIL",
+                     "VisibleIslandInputRouting":  "PASS",
+                     "ExteriorClickAndFocus":  "PASS",
+                     "CleanShutdown":  "PASS",
+                     "WorkAreaUnchanged":  "PASS"
+                 },
+    "Artifact":  {
+                     "Executable":  "C:\\Users\\Nimox\\OneDrive\\Documents\\Island\\src\\IslandTaskbar\\bin\\x64\\Debug\\net10.0-windows10.0.26100.0\\IslandTaskbar.exe",
+                     "AssemblySHA256":  "593174AADD31B457A2852A5B94341136897FD4F1DA7B089D5BAFD9DB37B2427D"
+                 },
+    "InitialRoutingObservation":  {
+                                      "WindowVisible":  true,
+                                      "InsidePointOwner":  5452,
+                                      "ExpectedOwner":  20020
+                                  },
+    "StartupFocus":  {
+                         "Before":  {
+                                        "Handle":  2820180,
+                                        "ProcessId":  5452,
+                                        "Name":  "Notepad"
+                                    },
+                         "After":  {
+                                       "Handle":  1575218,
+                                       "ProcessId":  672,
+                                       "Name":  "Antigravity IDE"
+                                   },
+                         "ChangesObserved":  [
+                                                 {
+                                                     "Handle":  8980056,
+                                                     "ProcessId":  14448,
+                                                     "Name":  "explorer"
+                                                 },
+                                                 {
+                                                     "Handle":  1575218,
+                                                     "ProcessId":  672,
+                                                     "Name":  "Antigravity IDE"
+                                                 }
+                                             ],
+                         "ObservationSeconds":  10,
+                         "PollIntervalMilliseconds":  100
+                     },
+    "Geometry":  {
+                     "Window":  {
+                                    "Left":  640,
+                                    "Top":  0,
+                                    "Right":  1280,
+                                    "Bottom":  240,
+                                    "Width":  640,
+                                    "Height":  240
+                                },
+                     "PrimaryOuterBounds":  {
+                                                "Left":  0,
+                                                "Top":  0,
+                                                "Right":  1920,
+                                                "Bottom":  1080,
+                                                "Width":  1920,
+                                                "Height":  1080
+                                            },
+                     "RegionBox":  {
+                                       "Left":  33,
+                                       "Top":  3,
+                                       "Right":  607,
+                                       "Bottom":  206,
+                                       "Width":  574,
+                                       "Height":  203
+                                   },
+                     "RegionType":  3,
+                     "CenterOffsetPixels":  0,
+                     "TopOffsetPixels":  0
+                 },
+    "Routing":  [
+                    {
+                        "Name":  "Inside",
+                        "X":  960,
+                        "Y":  104,
+                        "InsideRegion":  true,
+                        "OwnerProcessId":  672,
+                        "ExpectedOwner":  20020,
+                        "Pass":  false
+                    },
+                    {
+                        "Name":  "Left margin",
+                        "X":  656,
+                        "Y":  157,
+                        "InsideRegion":  false,
+                        "OwnerProcessId":  672,
+                        "ExpectedOwner":  5452,
+                        "Pass":  false
+                    },
+                    {
+                        "Name":  "Right margin",
+                        "X":  1264,
+                        "Y":  157,
+                        "InsideRegion":  false,
+                        "OwnerProcessId":  672,
+                        "ExpectedOwner":  5452,
+                        "Pass":  false
+                    },
+                    {
+                        "Name":  "Below island",
+                        "X":  960,
+                        "Y":  223,
+                        "InsideRegion":  false,
+                        "OwnerProcessId":  672,
+                        "ExpectedOwner":  5452,
+                        "Pass":  false
+                    },
+                    {
+                        "Name":  "Lower-left corner cutout",
+                        "X":  674,
+                        "Y":  205,
+                        "InsideRegion":  false,
+                        "OwnerProcessId":  672,
+                        "ExpectedOwner":  5452,
+                        "Pass":  false
+                    },
+                    {
+                        "Name":  "Lower-right corner cutout",
+                        "X":  1245,
+                        "Y":  205,
+                        "InsideRegion":  false,
+                        "OwnerProcessId":  672,
+                        "ExpectedOwner":  5452,
+                        "Pass":  false
+                    }
+                ],
+    "WindowIdentity":  {
+                           "MeasuredHandle":  5441766,
+                           "RootHandle":  5441766,
+                           "MeasuredClass":  "WinUIDesktopWin32WindowClass",
+                           "RootClass":  "WinUIDesktopWin32WindowClass",
+                           "MeasuredStyle":  340262912,
+                           "RootExtendedStyle":  256
+                       },
+    "ProcessWindows":  [
+                           {
+                               "Handle":  5441766,
+                               "Class":  "WinUIDesktopWin32WindowClass",
+                               "Visible":  true,
+                               "ExtendedStyle":  256
+                           },
+                           {
+                               "Handle":  1245248,
+                               "Class":  "IME",
+                               "Visible":  false,
+                               "ExtendedStyle":  8
+                           }
+                       ],
+    "Topmost":  {
+                    "ExtendedStyle":  256,
+                    "Foreground":  {
+                                       "Handle":  1575218,
+                                       "ProcessId":  672,
+                                       "Name":  "Antigravity IDE"
+                                   },
+                    "InsidePointOwner":  672
+                },
+    "InsideClick":  {
+                        "X":  1003,
+                        "Y":  145,
+                        "WithinWindowBounds":  true,
+                        "InsideRegion":  true,
+                        "PointOwnerProcessId":  20020,
+                        "ForegroundAfter":  {
+                                                "Handle":  5441766,
+                                                "ProcessId":  20020,
+                                                "Name":  "IslandTaskbar"
+                                            }
+                    },
+    "OutsideClick":  {
+                         "X":  938,
+                         "Y":  226,
+                         "WithinWindowBounds":  true,
+                         "InsideRegion":  false,
+                         "PointOwnerProcessId":  5452,
+                         "ForegroundAfter":  {
+                                                 "Handle":  2820180,
+                                                 "ProcessId":  5452,
+                                                 "Name":  "Notepad"
+                                             }
+                     },
+    "TopmostAfterExteriorClick":  {
+                                      "ExtendedStyle":  256,
+                                      "Foreground":  {
+                                                         "Handle":  2820180,
+                                                         "ProcessId":  5452,
+                                                         "Name":  "Notepad"
+                                                     },
+                                      "InsidePointOwner":  5452
+                                  },
+    "Exit":  {
+                 "ProcessId":  20020,
+                 "ExitCode":  0,
+                 "RemainingProcesses":  [
+
+                                        ]
+             },
+    "WindowTrace":  [
+
+                    ],
+    "WorkArea":  {
+                     "Before":  {
+                                    "Left":  0,
+                                    "Top":  0,
+                                    "Right":  1920,
+                                    "Bottom":  1080,
+                                    "Width":  1920,
+                                    "Height":  1080
+                                },
+                     "During":  {
+                                    "Left":  0,
+                                    "Top":  0,
+                                    "Right":  1920,
+                                    "Bottom":  1080,
+                                    "Width":  1920,
+                                    "Height":  1080
+                                },
+                     "After":  {
+                                   "Left":  0,
+                                   "Top":  0,
+                                   "Right":  1920,
+                                   "Bottom":  1080,
+                                   "Width":  1920,
+                                   "Height":  1080
+                               }
+                 },
+    "Environment":  {
+                        "WindowsBuild":  "26300.9974",
+                        "Architecture":  "x64",
+                        "UnderlyingApplication":  "Notepad",
+                        "UnderlyingProcessId":  5452
+                    }
+}

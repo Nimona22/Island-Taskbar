@@ -5,6 +5,7 @@ $resultPath = Join-Path $PSScriptRoot 'Phase23.RuntimeResults.json'
 $result = [ordered]@{ Phase = '2.3'; Date = (Get-Date).ToString('o'); Criteria = [ordered]@{} }
 $region = [IntPtr]::Zero
 $oldDpiContext = [IntPtr]::Zero
+Write-Host 'Phase 2.3 verifier revision 4: native process-handle shutdown check.'
 try {
     if (-not [Environment]::Is64BitProcess) { throw 'Use 64-bit Windows PowerShell.' }
     Add-Type -TypeDefinition @'
@@ -25,6 +26,10 @@ public static class Phase23Probe
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint owner);
     [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr window);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+    [DllImport("user32.dll", EntryPoint="GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr window, int index);
+    [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr window, uint flags);
+    [DllImport("user32.dll")] static extern bool EnumWindows(WindowCallback callback, IntPtr data);
     [DllImport("user32.dll", SetLastError=true)] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
     [DllImport("gdi32.dll")] public static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
     [DllImport("user32.dll")] public static extern int GetWindowRgn(IntPtr window, IntPtr region);
@@ -34,8 +39,18 @@ public static class Phase23Probe
     [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point point);
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out Point point);
     [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
+    [DllImport("kernel32.dll", SetLastError=true)] public static extern bool GetExitCodeProcess(IntPtr process, out uint code);
+    [DllImport("kernel32.dll", SetLastError=true)] public static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
     [DllImport("user32.dll")] static extern bool EnumThreadWindows(uint thread, WindowCallback callback, IntPtr data);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowTextW(IntPtr window, StringBuilder text, int capacity);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassNameW(IntPtr window, StringBuilder text, int capacity);
+    public static string ClassName(IntPtr window) { StringBuilder text = new StringBuilder(256); GetClassNameW(window, text, text.Capacity); return text.ToString(); }
+    public static IntPtr[] ProcessWindows(uint process)
+    {
+        System.Collections.Generic.List<IntPtr> found = new System.Collections.Generic.List<IntPtr>();
+        WindowCallback callback = delegate(IntPtr handle, IntPtr data) { uint owner; GetWindowThreadProcessId(handle, out owner); if (owner == process) found.Add(handle); return true; };
+        EnumWindows(callback, IntPtr.Zero); return found.ToArray();
+    }
     public static Monitor Primary()
     {
         Monitor result = new Monitor(); bool found = false;
@@ -86,11 +101,15 @@ public static class Phase23Probe
                 $cursor = New-Object Phase23Probe+Point
                 if ([Phase23Probe]::GetCursorPos([ref]$cursor)) {
                     $inIsland = [Phase23Probe]::PtInRegion($region, $cursor.X - $windowRect.Left, $cursor.Y - $windowRect.Top)
+                    $withinWindow = $cursor.X -ge $windowRect.Left -and $cursor.X -lt $windowRect.Right -and $cursor.Y -ge $windowRect.Top -and $cursor.Y -lt $windowRect.Bottom
                     $hitOwner = Get-Owner ([Phase23Probe]::WindowFromPoint($cursor))
-                    if (($inside -and $inIsland -and $hitOwner -eq $testProcess.Id) -or (-not $inside -and -not $inIsland -and $hitOwner -eq $notepad.ProcessId)) {
+                    if (($inside -and $inIsland -and $hitOwner -eq $testProcess.Id) -or (-not $inside -and $withinWindow -and -not $inIsland -and $hitOwner -eq $notepad.ProcessId)) {
                         while (([Phase23Probe]::GetAsyncKeyState(1) -band 0x8000) -ne 0) { Start-Sleep -Milliseconds 20 }
                         Start-Sleep -Milliseconds 250
-                        return [ordered]@{ X = $cursor.X; Y = $cursor.Y; InsideRegion = $inIsland; PointOwnerProcessId = $hitOwner; ForegroundAfter = (Get-Foreground) }
+                        return [ordered]@{ X = $cursor.X; Y = $cursor.Y; WithinWindowBounds = $withinWindow; InsideRegion = $inIsland; PointOwnerProcessId = $hitOwner; ForegroundAfter = (Get-Foreground) }
+                    }
+                    if (-not $inside -and -not $withinWindow) {
+                        Write-Host 'That click was beyond the overlay bounds. Click the thin Notepad strip directly below the dark island, close to its curved edge.'
                     }
                 }
             }
@@ -111,7 +130,7 @@ public static class Phase23Probe
         $existing[0].Dispose()
     }
     Write-Host 'Open a blank Notepad window, maximize it, and click inside the document.'
-    Write-Host 'The Phase 2.3 window will launch automatically. Wait 10 seconds after it appears before clicking it.'
+    Write-Host 'The Phase 2.3 window will launch automatically. Leave mouse and keyboard untouched for 30 seconds after it appears. Do not return to PowerShell during that wait.'
     $readyDeadline = [DateTime]::UtcNow.AddMinutes(10)
     $notepad = $null
     while ([DateTime]::UtcNow -lt $readyDeadline) {
@@ -122,6 +141,8 @@ public static class Phase23Probe
     if (-not $notepad) { throw 'A maximized foreground Notepad window was not observed.' }
     $displayBefore = [Phase23Probe]::Primary()
     $testProcess = Start-Process -FilePath $executable -WorkingDirectory ([IO.Path]::GetDirectoryName($executable)) -PassThru
+    $testProcessHandle = $testProcess.Handle
+    $result.Artifact = [ordered]@{ Executable = $executable; AssemblySHA256 = (Get-FileHash -LiteralPath (Join-Path ([IO.Path]::GetDirectoryName($executable)) 'IslandTaskbar.dll') -Algorithm SHA256).Hash }
     $region = [Phase23Probe]::CreateRectRgn(0, 0, 0, 0)
     if ($region -eq [IntPtr]::Zero) { throw 'Could not allocate the query region.' }
     $windowHandle = [IntPtr]::Zero
@@ -144,6 +165,28 @@ public static class Phase23Probe
     }
     if ($testProcess.HasExited) { $testProcess.WaitForExit(); throw ('The prototype exited before displaying its island. Exit code: ' + $testProcess.ExitCode) }
     if ($regionType -le 1) { throw 'A visible native island region did not appear within fifteen seconds.' }
+    # A native region can exist before the nonactivating window has appeared. Retain both observations.
+    $initialPoint = New-Object Phase23Probe+Point
+    $initialRect = New-Object Phase23Probe+Rect
+    if (-not [Phase23Probe]::GetWindowRect($windowHandle, [ref]$initialRect)) { throw 'Initial GetWindowRect failed.' }
+    $initialPoint.X = $initialRect.Left + [int](($regionBox.Left + $regionBox.Right) / 2)
+    $initialPoint.Y = $initialRect.Top + [int](($regionBox.Top + $regionBox.Bottom) / 2)
+    $result.InitialRoutingObservation = [ordered]@{ WindowVisible = [Phase23Probe]::IsWindowVisible($windowHandle); InsidePointOwner = (Get-Owner ([Phase23Probe]::WindowFromPoint($initialPoint))); ExpectedOwner = $testProcess.Id }
+    $focusChanges = @()
+    $settleDeadline = [DateTime]::UtcNow.AddSeconds(10)
+    while ([DateTime]::UtcNow -lt $settleDeadline) {
+        if ($testProcess.HasExited) { throw 'The prototype exited during the startup observation.' }
+        $foreground = Get-Foreground
+        if ($foreground.Handle -ne $notepad.Handle) {
+            if ($focusChanges.Count -eq 0 -or $focusChanges[-1].Handle -ne $foreground.Handle) { $focusChanges += $foreground }
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    $result.StartupFocus = [ordered]@{ Before = $notepad; After = (Get-Foreground); ChangesObserved = $focusChanges; ObservationSeconds = 10; PollIntervalMilliseconds = 100 }
+    $result.Criteria.StartupFocusPreserved = $(if ($focusChanges.Count -eq 0 -and $result.StartupFocus.After.Handle -eq $notepad.Handle) { 'PASS' } else { 'FAIL' })
+    if (-not [Phase23Probe]::IsWindowVisible($windowHandle)) { throw 'The island window was not visible after the startup observation.' }
+    $regionType = [Phase23Probe]::GetWindowRgn($windowHandle, $region)
+    if ($regionType -le 1 -or [Phase23Probe]::GetRgnBox($region, [ref]$regionBox) -le 1) { throw 'The visible island region disappeared.' }
     $windowRect = New-Object Phase23Probe+Rect
     if (-not [Phase23Probe]::GetWindowRect($windowHandle, [ref]$windowRect)) { throw 'GetWindowRect failed.' }
     $displayDuring = [Phase23Probe]::Primary()
@@ -172,18 +215,36 @@ public static class Phase23Probe
     $result.Routing = $routing
     $result.Criteria.CenteredCompactTopBounds = $(if ($width -le 640 -and $height -le 240 -and $result.Geometry.CenterOffsetPixels -eq 0 -and $result.Geometry.TopOffsetPixels -eq 0) { 'PASS' } else { 'FAIL' })
     $result.Criteria.NativeRoundedOutline = $(if ($regionType -eq 3 -and @($routing | Where-Object { $_.Name -like '*corner*' -and -not $_.Pass }).Count -eq 0) { 'PASS' } else { 'FAIL' })
-    $result.Criteria.ExteriorPointRouting = $(if (@($routing | Where-Object { -not $_.Pass }).Count -eq 0) { 'PASS' } else { 'FAIL' })
+    $result.Criteria.ExteriorPointRouting = $(if (@($routing | Where-Object { $_.Name -ne 'Inside' -and -not $_.Pass }).Count -eq 0) { 'PASS' } else { 'FAIL' })
+    $result.Criteria.InteriorPointRouting = $(if ($routing[0].Pass) { 'PASS' } else { 'FAIL' })
+    $rootHandle = [Phase23Probe]::GetAncestor($windowHandle, 2)
+    $result.WindowIdentity = [ordered]@{ MeasuredHandle = $windowHandle.ToInt64(); RootHandle = $rootHandle.ToInt64(); MeasuredClass = [Phase23Probe]::ClassName($windowHandle); RootClass = [Phase23Probe]::ClassName($rootHandle); MeasuredStyle = [Phase23Probe]::GetWindowLongPtr($windowHandle, -16).ToInt64(); RootExtendedStyle = [Phase23Probe]::GetWindowLongPtr($rootHandle, -20).ToInt64() }
+    $result.ProcessWindows = @([Phase23Probe]::ProcessWindows([uint32]$testProcess.Id) | ForEach-Object { [ordered]@{ Handle = $_.ToInt64(); Class = [Phase23Probe]::ClassName($_); Visible = [Phase23Probe]::IsWindowVisible($_); ExtendedStyle = [Phase23Probe]::GetWindowLongPtr($_, -20).ToInt64() } })
+    $result.Topmost = [ordered]@{ ExtendedStyle = [Phase23Probe]::GetWindowLongPtr($rootHandle, -20).ToInt64(); Foreground = (Get-Foreground); InsidePointOwner = $routing[0].OwnerProcessId }
+    $result.Criteria.TopmostAboveNotepad = $(if (($result.Topmost.ExtendedStyle -band 8) -ne 0 -and $routing[0].Pass -and $result.Topmost.Foreground.Handle -eq $notepad.Handle) { 'PASS' } else { 'FAIL' })
     Write-Host ('Measured window and region: ' + ($result.Geometry | ConvertTo-Json -Depth 4 -Compress))
-    Write-Host 'Click the dark visible island once, away from the Close button.'
+    Write-Host 'Click the diagnostic heading in the dark island once. Check that the island-click counter increases. Do not click Close yet.'
     $result.InsideClick = Wait-ForClick $true
-    Write-Host 'Now click the white Notepad document immediately beside or below the island. Do not click the island again.'
+    Write-Host ('Now click the thin Notepad strip DIRECTLY below the dark island, near screen point (' + ($windowRect.Left + $centerX) + ', ' + [int](($windowRect.Top + $regionBox.Bottom + $windowRect.Bottom) / 2) + '). A click far down the document does not count.')
     $result.OutsideClick = Wait-ForClick $false
     $result.Criteria.VisibleIslandInputRouting = 'PASS'
     $result.Criteria.ExteriorClickAndFocus = $(if ($result.OutsideClick.ForegroundAfter.ProcessId -eq $notepad.ProcessId) { 'PASS' } else { 'FAIL' })
+    $postClickPoint = New-Object Phase23Probe+Point
+    $postClickPoint.X = $windowRect.Left + $centerX; $postClickPoint.Y = $windowRect.Top + [int](($regionBox.Top + $regionBox.Bottom) / 2)
+    $result.TopmostAfterExteriorClick = [ordered]@{ ExtendedStyle = [Phase23Probe]::GetWindowLongPtr($rootHandle, -20).ToInt64(); Foreground = (Get-Foreground); InsidePointOwner = (Get-Owner ([Phase23Probe]::WindowFromPoint($postClickPoint))) }
+    $result.Criteria.TopmostAboveNotepad = $(if ($result.Criteria.TopmostAboveNotepad -eq 'PASS' -and ($result.TopmostAfterExteriorClick.ExtendedStyle -band 8) -ne 0 -and $result.TopmostAfterExteriorClick.InsidePointOwner -eq $testProcess.Id -and $result.TopmostAfterExteriorClick.Foreground.Handle -eq $notepad.Handle) { 'PASS' } else { 'FAIL' })
+    Write-Host 'Before closing: check that the island still overlaps active Notepad, the lower corners are rounded, and Notepad shows through the exterior. Check that the outside click did not increase the island counter.'
     Write-Host "Click 'Close test window' now."
-    if (-not $testProcess.WaitForExit(600000)) { throw 'The prototype did not close within ten minutes.' }
-    $testProcess.WaitForExit()
-    $result.Exit = [ordered]@{ ProcessId = $testProcess.Id; ExitCode = $testProcess.ExitCode; RemainingProcesses = @(Get-Process -Name IslandTaskbar -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id) }
+    $closeDeadline = [DateTime]::UtcNow.AddMinutes(10)
+    do { $exitWait = [Phase23Probe]::WaitForSingleObject($testProcessHandle, 100) } while ($exitWait -eq 258 -and [DateTime]::UtcNow -lt $closeDeadline)
+    if ($exitWait -eq 258) { throw 'The prototype did not close within ten minutes.' }
+    if ($exitWait -ne 0) { throw ('Native process wait failed with status ' + $exitWait) }
+    Write-Host 'Process exit observed. Reading native exit code.'
+    [uint32]$exitCode = 0
+    if (-not [Phase23Probe]::GetExitCodeProcess($testProcessHandle, [ref]$exitCode)) { throw 'Could not read the completed process exit code.' }
+    $result.Exit = [ordered]@{ ProcessId = $testProcess.Id; ExitCode = $exitCode; RemainingProcesses = @(Get-Process -Name IslandTaskbar -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id) }
+    $tracePath = Join-Path ([IO.Path]::GetDirectoryName($executable)) 'Phase23.WindowTrace.txt'
+    if (Test-Path -LiteralPath $tracePath) { $result.WindowTrace = @(Get-Content -LiteralPath $tracePath | Where-Object { $_ -match ('PID=' + $testProcess.Id + ' ') }) }
     $result.Criteria.CleanShutdown = $(if ($result.Exit.ExitCode -eq 0 -and $result.Exit.RemainingProcesses.Count -eq 0) { 'PASS' } else { 'FAIL' })
     $displayAfter = [Phase23Probe]::Primary()
     $result.WorkArea = [ordered]@{ Before = (Convert-Rect $displayBefore.Work); During = (Convert-Rect $displayDuring.Work); After = (Convert-Rect $displayAfter.Work) }
@@ -197,9 +258,10 @@ public static class Phase23Probe
 } finally {
     if ($region -ne [IntPtr]::Zero) { [Phase23Probe]::DeleteObject($region) | Out-Null }
     if ($oldDpiContext -ne [IntPtr]::Zero) { [Phase23Probe]::SetThreadDpiAwarenessContext($oldDpiContext) | Out-Null }
-    foreach ($criterion in @('CenteredCompactTopBounds','NativeRoundedOutline','ExteriorPointRouting','VisibleIslandInputRouting','ExteriorClickAndFocus','CleanShutdown','WorkAreaUnchanged')) {
+    foreach ($criterion in @('CenteredCompactTopBounds','NativeRoundedOutline','ExteriorPointRouting','InteriorPointRouting','StartupFocusPreserved','TopmostAboveNotepad','VisibleIslandInputRouting','ExteriorClickAndFocus','CleanShutdown','WorkAreaUnchanged')) {
         if (-not $result.Criteria.Contains($criterion)) { $result.Criteria[$criterion] = 'NOT VERIFIED' }
     }
+    Write-Host 'Saving verification results.'
     $result | ConvertTo-Json -Depth 9 | Set-Content -LiteralPath $resultPath -Encoding UTF8
     Write-Host ($result.Criteria | ConvertTo-Json)
     Write-Host ('Results saved to: ' + $resultPath)
