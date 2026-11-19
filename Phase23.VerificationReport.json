@@ -1,0 +1,44 @@
+﻿{
+    "Phase":  "2.3",
+    "Status":  "Prototype implemented; desktop runtime verification pending",
+    "Build":  {
+                  "DebugX64":  "PASS",
+                  "ReleaseX64":  "PASS",
+                  "Warnings":  0,
+                  "Errors":  0
+              },
+    "Criteria":  {
+                     "TransparentExterior":  "NOT VERIFIED",
+                     "VisibleRoundedIsland":  "NOT VERIFIED",
+                     "CompactCenteredTopBounds":  "NOT VERIFIED",
+                     "VisibleIslandClick":  "NOT VERIFIED",
+                     "ExteriorClickThrough":  "NOT VERIFIED",
+                     "ExteriorClickDoesNotActivateOverlay":  "NOT VERIFIED",
+                     "TopmostBehavior":  "NOT VERIFIED",
+                     "CleanShutdown":  "NOT VERIFIED"
+                 },
+    "LocalInitialization":  "PASS: the initial empty HWND region became a non-empty complex region after WinUI layout. This does not establish user-desktop visuals or foreign-application input behavior.",
+    "Implementation":  [
+                           "Existing AppWindow topmost, sizing, show, and lifecycle retained.",
+                           "Root unpainted; token-based visible island with lower rounded corners and click counter.",
+                           "Measured WinUI surface geometry routed through App/controller to native adapter.",
+                           "User-approved CsWin32 0.3.371 generates native region bindings."
+                       ],
+    "NativeAPIs":  [
+                       "ClientToScreen",
+                       "GetWindowRect",
+                       "CreateRectRgn",
+                       "CreateRoundRectRgn",
+                       "CombineRgn",
+                       "SetWindowRgn",
+                       "DeleteObject"
+                   ],
+    "Limitations":  [
+                        "Transparency is provided by removing exterior pixels/input from the window region; this is not a general per-pixel alpha rendering implementation.",
+                        "Native region geometry uses integer coordinates; fractional WinUI corner edges require visual verification.",
+                        "The region clips drawing as well as input, including any content/shadow outside the outline.",
+                        "WS_EX_TRANSPARENT and HTTRANSPARENT were not used as selective cross-process click-through solutions.",
+                        "Desktop automation connection could not execute because automatic approval review failed. Real runtime checks require the user-local Verify-Phase23.ps1 run.",
+                        "No animations, taskbar hiding, Explorer modification, AppBar, media features, or later-phase features implemented."
+                    ]
+}

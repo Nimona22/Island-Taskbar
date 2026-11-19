@@ -1,7 +1,9 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using IslandTaskbar.Adapters.Implementations;
 using IslandTaskbar.Controllers;
+using IslandTaskbar.Models;
 using IslandTaskbar.Presentation.Windows;
 
 namespace IslandTaskbar
@@ -24,7 +26,7 @@ namespace IslandTaskbar
         }
 
         /// <summary>
-        /// Creates and initializes the Phase 2.2 test window without requesting activation.
+        /// Creates and initializes the Phase 2.3 test window without requesting activation.
         /// </summary>
         /// <param name="args">Launch activation details provided by the Windows App SDK.</param>
         protected override void OnLaunched(LaunchActivatedEventArgs args)
@@ -32,10 +34,11 @@ namespace IslandTaskbar
             _mainWindow = new IslandWindow();
             _mainWindow.Closed += OnMainWindowClosed;
             _mainWindow.TemporaryCloseRequested += OnTemporaryCloseRequested;
+            _mainWindow.SurfaceLayoutChanged += OnSurfaceLayoutChanged;
 
             try
             {
-                // Phase 2.2 authorizes manual construction; no MVVM or DI framework is introduced.
+                // Manual construction keeps prototype behavior behind the existing adapter boundary.
                 _windowController = new IslandWindowController(
                     new WindowsAppSdkIslandWindowAdapter(_mainWindow),
                     new WindowsAppSdkDisplayService());
@@ -45,6 +48,7 @@ namespace IslandTaskbar
             {
                 _mainWindow.Closed -= OnMainWindowClosed;
                 _mainWindow.TemporaryCloseRequested -= OnTemporaryCloseRequested;
+                _mainWindow.SurfaceLayoutChanged -= OnSurfaceLayoutChanged;
                 _windowController?.Dispose();
                 _windowController = null;
                 _mainWindow.Close();
@@ -58,12 +62,43 @@ namespace IslandTaskbar
             _mainWindow?.Close();
         }
 
+        private void OnSurfaceLayoutChanged(object? sender, IslandSurfaceLayoutEventArgs e)
+        {
+            try
+            {
+                _windowController?.UpdateSurfaceRegion(e);
+            }
+            catch (Win32Exception failure)
+            {
+                Debug.WriteLine($"Prototype surface region failed ({failure.NativeErrorCode}): {failure.Message}");
+                var window = _mainWindow;
+                if (window is null)
+                {
+                    return;
+                }
+
+                window.SurfaceLayoutChanged -= OnSurfaceLayoutChanged;
+                // Let the current layout/launch callback unwind before normal close/disposal.
+                if (!window.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (ReferenceEquals(_mainWindow, window))
+                        {
+                            window.Close();
+                        }
+                    }))
+                {
+                    window.Close();
+                }
+            }
+        }
+
         private void OnMainWindowClosed(object sender, WindowEventArgs args)
         {
             if (_mainWindow is not null)
             {
                 _mainWindow.Closed -= OnMainWindowClosed;
                 _mainWindow.TemporaryCloseRequested -= OnTemporaryCloseRequested;
+                _mainWindow.SurfaceLayoutChanged -= OnSurfaceLayoutChanged;
                 _windowController?.Dispose();
                 _windowController = null;
                 _mainWindow = null;

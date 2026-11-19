@@ -1,0 +1,7 @@
+ClientToScreen
+CombineRgn
+CreateRectRgn
+CreateRoundRectRgn
+DeleteObject
+GetWindowRect
+SetWindowRgn

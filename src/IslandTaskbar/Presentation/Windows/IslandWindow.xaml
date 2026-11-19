@@ -4,31 +4,39 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="IslandTaskbar">
-    <!-- Phase 2.2 temporary diagnostic surface; this is not the final notch design. -->
-    <Grid x:Name="DiagnosticSurface"
-          Background="{StaticResource Surface.IslandFallback}"
-          RowSpacing="{StaticResource Space.Compact}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <!-- Phase 2.3: the native region excludes the unpainted margins from both drawing and input. -->
+    <Grid x:Name="WindowRoot">
+        <Border x:Name="IslandSurface"
+                Background="{StaticResource Surface.IslandFallback}"
+                CornerRadius="{StaticResource Radius.Island}"
+                Loaded="OnSurfaceLoaded"
+                SizeChanged="OnSurfaceSizeChanged"
+                Tapped="OnIslandTapped">
+            <Grid x:Name="DiagnosticSurface" RowSpacing="{StaticResource Space.Compact}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-        <TextBlock Text="Phase 2.2 — window test"
-                   Style="{StaticResource Type.Display}"
-                   Foreground="{StaticResource Text.Primary}"
-                   TextTrimming="CharacterEllipsis" />
-        <TextBlock Grid.Row="1"
-                   Text="Temporary diagnostic surface. Not the final notch."
-                   Style="{StaticResource Type.Body}"
-                   Foreground="{StaticResource Text.Secondary}"
-                   TextWrapping="Wrap" />
-        <Button Grid.Row="2"
-                Content="Close test window"
-                AutomationProperties.Name="Close temporary test window"
-                HorizontalAlignment="Left"
-                Background="{StaticResource Surface.ElevatedFallback}"
-                Foreground="{StaticResource Text.Primary}"
-                Click="OnTemporaryCloseClick" />
+                <TextBlock Text="Phase 2.3 — shape and input test"
+                           Style="{StaticResource Type.Display}"
+                           Foreground="{StaticResource Text.Primary}"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="ClickFeedback"
+                           Grid.Row="1"
+                           Text="Click the visible island. Island clicks: 0"
+                           Style="{StaticResource Type.Body}"
+                           Foreground="{StaticResource Text.Secondary}"
+                           TextWrapping="Wrap" />
+                <Button Grid.Row="2"
+                        Content="Close test window"
+                        AutomationProperties.Name="Close temporary test window"
+                        HorizontalAlignment="Left"
+                        Background="{StaticResource Surface.ElevatedFallback}"
+                        Foreground="{StaticResource Text.Primary}"
+                        Click="OnTemporaryCloseClick" />
+            </Grid>
+        </Border>
     </Grid>
 </Window>

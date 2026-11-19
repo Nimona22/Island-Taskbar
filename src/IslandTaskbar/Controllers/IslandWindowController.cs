@@ -1,5 +1,6 @@
 using System;
 using IslandTaskbar.Adapters.Interfaces;
+using IslandTaskbar.Models;
 
 namespace IslandTaskbar.Controllers
 {
@@ -8,7 +9,7 @@ namespace IslandTaskbar.Controllers
     /// </summary>
     internal sealed class IslandWindowController : IIslandWindowController
     {
-        // PROVISIONAL — Phase 2.2 diagnostic dimensions, not final product dimensions (OD-019).
+        // PROVISIONAL — Phase 2.3 diagnostic bounds, not final product dimensions (OD-019).
         // AppWindow bounds use physical pixels. DPI-aware sizing belongs to a later milestone.
         private const int ProvisionalWindowWidthPixels = 640;
         private const int ProvisionalWindowHeightPixels = 240;
@@ -61,6 +62,34 @@ namespace IslandTaskbar.Controllers
 
             _isDisposed = true;
             _windowAdapter.Dispose();
+        }
+
+        public void UpdateSurfaceRegion(IslandSurfaceLayoutEventArgs layout)
+        {
+            ObjectDisposedException.ThrowIf(_isDisposed, this);
+            ArgumentNullException.ThrowIfNull(layout);
+            if (!double.IsFinite(layout.RasterizationScale) || layout.RasterizationScale <= 0
+                || !double.IsFinite(layout.Left) || !double.IsFinite(layout.Top)
+                || !double.IsFinite(layout.Width) || !double.IsFinite(layout.Height)
+                || !double.IsFinite(layout.LowerCornerRadius) || layout.LowerCornerRadius < 0
+                || layout.Width <= 0 || layout.Height <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(layout), "The surface layout must be finite and positive.");
+            }
+
+            // Convert the actual WinUI geometry once at the adapter boundary, not with a second UI scale.
+            double scale = layout.RasterizationScale;
+            int left = checked((int)Math.Round(layout.Left * scale));
+            int top = checked((int)Math.Round(layout.Top * scale));
+            int right = checked((int)Math.Round((layout.Left + layout.Width) * scale));
+            int bottom = checked((int)Math.Round((layout.Top + layout.Height) * scale));
+            int radius = checked((int)Math.Round(layout.LowerCornerRadius * scale));
+            if (right <= left || bottom <= top)
+            {
+                throw new ArgumentOutOfRangeException(nameof(layout), "The surface must occupy physical pixels.");
+            }
+
+            _windowAdapter.SetSurfaceRegion(left, top, right - left, bottom - top, radius);
         }
     }
 }

@@ -21,5 +21,10 @@ namespace IslandTaskbar.Adapters.Interfaces
         /// Shows the window without requesting activation.
         /// </summary>
         void ShowWithoutActivation();
+
+        /// <summary>
+        /// Sets the visible and input outline in client-relative physical pixels, with rounded lower corners.
+        /// </summary>
+        void SetSurfaceRegion(int left, int top, int width, int height, int lowerCornerRadius);
     }
 }
