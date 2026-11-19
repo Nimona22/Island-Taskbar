@@ -1,0 +1,21 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# .NET / Visual Studio / WinUI 3 build outputs (FILE_STRUCTURE.md §I.1)
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+
+# Generated source files (FILE_STRUCTURE.md §I.2)
+NativeMethods.g.cs
+*.g.cs
+*.g.i.cs

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Target framework per ENV.md §6 and D-004 (exact TFM confirmation tracked in OD-023) -->
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <!-- PROVISIONAL — OD-015: minimum supported Windows 11 build is open; using Windows SDK baseline until compatibility testing defines the support matrix. -->
+    <TargetPlatformMinVersion>10.0.26100.0</TargetPlatformMinVersion>
+    <RootNamespace>IslandTaskbar</RootNamespace>
+    <AssemblyName>IslandTaskbar</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <UseWinUI>true</UseWinUI>
+    <!-- PROVISIONAL — OD-014: development-only unpackaged configuration; final packaging and distribution model awaits SPIKE-005. -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <EnableMsixTooling>false</EnableMsixTooling>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Manifest Include="$(ApplicationManifest)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Pinned per D-004 and ENV.md §6 -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.7.0" />
+    <!-- Microsoft.Windows.CsWin32 intentionally omitted in Phase 1: exact version is open (OD-023) and no Win32 interop is implemented in Phase 1. -->
+  </ItemGroup>
+</Project>

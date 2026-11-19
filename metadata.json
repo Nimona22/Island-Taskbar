@@ -1,0 +1,6 @@
+{
+  "name": "IslandTaskbar",
+  "description": "Native Windows 11 taskbar replacement (C# / .NET 10 / WinUI 3 / Windows App SDK 2.7.0) — Phase 1 Bootstrap",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

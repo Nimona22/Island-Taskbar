@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="IslandTaskbar.Presentation.Windows.IslandWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="IslandTaskbar">
+    <!--
+        Phase 1 bootstrap: basic empty main window.
+        Window chrome removal, topmost behavior, anchoring, DPI positioning, and hit testing belong to Phase 2 (D-009, OD-010, OD-011).
+    -->
+    <Grid Background="{StaticResource Surface.IslandFallback}" />
+</Window>
