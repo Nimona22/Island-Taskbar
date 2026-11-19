@@ -1,0 +1,53 @@
+#!/usr/bin/env sh
+# =============================================================================
+# IslandTaskbar — Pre-commit Secret Scanner & Linter
+# Blocks any commit that would leak credentials, private keys, or secret files.
+# =============================================================================
+
+# 1. Block .env, credentials, and sensitive certificate files
+STAGED_SECRETS=$(git diff --cached --diff-filter=d --name-only | grep -E '(^\.env|\.env\.|\.pem$|\.key$|\.pfx$|\.p12$|\.cer$|\.crt$|\.snk$|id_rsa|id_ed25519)' | grep -v '\.env\.example$' || true)
+if [ -n "$STAGED_SECRETS" ]; then
+  echo ""
+  echo "🚨 SECURITY BLOCK: Attempted to commit secret / sensitive file(s):"
+  echo "$STAGED_SECRETS"
+  echo ""
+  echo "   These files are blocked from version control."
+  echo "   Only .env.example (with placeholder values) may be committed."
+  echo ""
+  exit 1
+fi
+
+# 2. Block working-phase test/diagnostic files from accidental commit
+STAGED_PHASE=$(git diff --cached --diff-filter=d --name-only | grep -E '^(Phase[0-9]|Verify-Phase|Inspect-Phase|Diagnose-Phase|\.diagnostics/)' || true)
+if [ -n "$STAGED_PHASE" ]; then
+  echo ""
+  echo "🚨 SECURITY BLOCK: Working phase / diagnostic file(s) staged:"
+  echo "$STAGED_PHASE"
+  echo ""
+  echo "   Local working phases and diagnostics must not be committed to Git."
+  echo ""
+  exit 1
+fi
+
+# 3. Scan staged source files for hardcoded secrets
+SECRET_PATTERNS='(sk-[a-zA-Z0-9_-]{20,}|sk_(live|test)_[0-9a-zA-Z]{24,}|gh[pousr]_[a-zA-Z0-9]{36,}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59,}|-----BEGIN (RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY( BLOCK)?-----|eyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,})'
+SAFE_EXCLUSIONS='(<[^>]+>|placeholder|example-key|example|dummy|mock|process\.env\.|env\.|:\s*string)'
+
+FOUND=$(git diff --cached --diff-filter=d -U0 -- ':(top,exclude).husky/**' '*.cs' '*.xaml' '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' '*.yaml' '*.yml' '*.sh' '*.ps1' 2>/dev/null \
+  | grep '^+' | grep -v '^+++' \
+  | grep -Ei "$SECRET_PATTERNS" \
+  | grep -Evi "$SAFE_EXCLUSIONS" || true)
+
+if [ -n "$FOUND" ]; then
+  echo ""
+  echo "🚨 SECURITY BLOCK: Potential secret detected in staged changes:"
+  echo ""
+  echo "$FOUND" | head -20
+  echo ""
+  echo "   Review the above lines. Remove any real credentials or private keys."
+  echo ""
+  exit 1
+fi
+
+# 4. Run lint-staged
+npx lint-staged

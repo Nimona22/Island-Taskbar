@@ -1,3 +1,0 @@
-.sympath C:\Users\Nimox\OneDrive\Documents\Island\.diagnostics\phase23-topmost\symbols
-bu win32u!NtUserSetWindowPos ".if (@rdx != 0xffffffffffffffff) { gc }"
-g

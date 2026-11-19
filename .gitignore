@@ -1,42 +1,97 @@
-<<<<<<< HEAD
-node_modules/
-build/
-dist/
-coverage/
-.DS_Store
-*.log
+# =============================================================================
+# IslandTaskbar — Git Ignore Rules (Public Release Hardened)
+# =============================================================================
+
+# ── 1. Security & Secrets (STRICT: Never commit credentials) ─────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
 .env*
 !.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+*.snk
+*.secret
+*.credentials
+*.publishsettings
+Package.StoreAssociation.xml
+id_rsa*
+id_ed25519*
 
-# .NET / Visual Studio / WinUI 3 build outputs (FILE_STRUCTURE.md §I.1)
+# ── 2. Local Working Phases, Verification Reports & Scratch Artifacts ────────
+Phase*
+Verify-Phase*
+Inspect-Phase*
+Diagnose-Phase*
+*.VerificationReport.json
+*.RuntimeResults*.json
+*.LaunchContext.json
+*.TopmostInvestigation.json
+
+# ── 3. Diagnostics, Debuggers, Symbols & Memory Dumps ────────────────────────
+.diagnostics/
+*.pdb
+*.ilk
+*.dmp
+*.mdmp
+*.crash
+*.wds
+*.exp
+*.lib
+
+# ── 4. .NET / WinUI 3 Build Outputs (FILE_STRUCTURE.md §I.1) ─────────────────
 bin/
 obj/
-*.user
-*.suo
-.vs/
+[Bb]in/
+[Oo]bj/
+AppPackages/
+BundleArtifacts/
 TestResults/
+*.xbf
+*.pri
 
-# Generated source files (FILE_STRUCTURE.md §I.2)
+# ── 5. Visual Studio & IDE Configurations (FILE_STRUCTURE.md §I.1) ───────────
+.vs/
+*.user
+*.userosv
+*.suo
+*.userprefs
+*.sln.docstates
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# ── 6. Source-Generated Interop & XAML (FILE_STRUCTURE.md §I.2) ──────────────
 NativeMethods.g.cs
 *.g.cs
 *.g.i.cs
-=======
-# Build and Release Folders
-bin-debug/
-bin-release/
-[Oo]bj/
-[Bb]in/
 
-# Other files and folders
-.settings/
+# ── 7. Logs & Temporary Files ────────────────────────────────────────────────
+*.log
+*.tlog
+*.tmp
+*.bak
 
-# Executables
-*.swf
-*.air
-*.ipa
-*.apk
+# ── 8. Operating System & Local Metadata ─────────────────────────────────────
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 
-# Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
-# should NOT be excluded as they contain compiler settings and other important
-# information for Eclipse / Flash Builder.
->>>>>>> 8f27c9d122c6de147edb5633bdbea883291af370
+# ── 9. Web Scaffolding & Dependencies (Google AI Studio / Vite preview) ──────
+node_modules/
+dist/
+build/
+coverage/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

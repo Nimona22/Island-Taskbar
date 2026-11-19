@@ -1,0 +1,46 @@
+#!/usr/bin/env sh
+# =============================================================================
+# IslandTaskbar — Pre-push Secret Scanner
+# Last line of defense before remote push.
+# =============================================================================
+
+echo "🔍 Running pre-push secret audit..."
+
+# 1. Block any committed .env or secret files from being pushed
+COMMITTED_SECRETS=$(git diff --diff-filter=d --name-only origin/main..HEAD 2>/dev/null | grep -E '(^\.env|\.env\.|\.pem$|\.key$|\.pfx$|\.p12$|\.cer$|\.crt$|\.snk$|id_rsa|id_ed25519)' | grep -v '\.env\.example$' || true)
+if [ -n "$COMMITTED_SECRETS" ]; then
+  echo ""
+  echo "🚨 PRE-PUSH BLOCKED: Secret file(s) found in outgoing commits:"
+  echo "$COMMITTED_SECRETS"
+  echo ""
+  exit 1
+fi
+
+# 2. Block working phase files from being pushed
+COMMITTED_PHASE=$(git diff --diff-filter=d --name-only origin/main..HEAD 2>/dev/null | grep -E '^(Phase[0-9]|Verify-Phase|Inspect-Phase|Diagnose-Phase|\.diagnostics/)' || true)
+if [ -n "$COMMITTED_PHASE" ]; then
+  echo ""
+  echo "🚨 PRE-PUSH BLOCKED: Working phase / diagnostic file(s) in outgoing commits:"
+  echo "$COMMITTED_PHASE"
+  echo ""
+  exit 1
+fi
+
+# 3. Hard secret patterns
+HARD_PATTERNS='(sk-[a-zA-Z0-9_-]{20,}|sk_(live|test)_[0-9a-zA-Z]{24,}|gh[pousr]_[a-zA-Z0-9]{36,}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59,}|-----BEGIN (RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY( BLOCK)?-----)'
+SAFE_EXCLUSIONS='(<[^>]+>|placeholder|example-key|example|dummy|mock)'
+
+FOUND=$(git diff --diff-filter=d -U0 origin/main..HEAD 2>/dev/null \
+  | grep '^+' | grep -v '^+++' \
+  | grep -Ei "$HARD_PATTERNS" \
+  | grep -Evi "$SAFE_EXCLUSIONS" || true)
+
+if [ -n "$FOUND" ]; then
+  echo ""
+  echo "🚨 PRE-PUSH BLOCKED: Potential secret detected in outgoing commits:"
+  echo "$FOUND" | head -20
+  echo ""
+  exit 1
+fi
+
+echo "✅ Pre-push secret audit passed — no secrets detected."

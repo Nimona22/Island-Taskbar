@@ -1,5 +1,0 @@
-LIBRARY kd_07_1415
-
-EXPORTS
-        KdInitializeLibrary
-

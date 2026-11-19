@@ -1,5 +1,0 @@
-LIBRARY kdnet_uart16550
-
-EXPORTS
-        KdInitializeLibrary
-
