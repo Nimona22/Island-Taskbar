@@ -1,12 +1,12 @@
 ﻿{
-    "Date":  "2026-11-19T05:17:15.4221110+03:00",
+    "Date":  "2026-11-19T05:40:07.6899002+03:00",
     "Evidence":  "Native API measurements with manual close-button input",
     "Criteria":  {
-                     "StartupFocus":  "FAIL",
+                     "StartupFocus":  "PASS",
                      "HorizontalCenter":  "PASS",
                      "TopEdge":  "PASS",
-                     "Borderless":  "FAIL",
-                     "Topmost":  "PASS",
+                     "Borderless":  "NOT VERIFIED",
+                     "Topmost":  "NOT VERIFIED",
                      "CloseButtonAndCleanExit":  "PASS",
                      "WorkAreaUnchanged":  "PASS"
                  },
@@ -18,31 +18,26 @@
                     },
     "Focus":  {
                   "Before":  {
-                                 "Handle":  100927518,
-                                 "ProcessId":  9588,
-                                 "ProcessName":  "WindowsTerminal"
+                                 "Handle":  9634896,
+                                 "ProcessId":  18948,
+                                 "ProcessName":  "Notepad"
                              },
                   "Samples":  [
                                   {
-                                      "Handle":  100927518,
-                                      "ProcessId":  9588,
-                                      "ProcessName":  "WindowsTerminal"
-                                  },
-                                  {
-                                      "Handle":  8980056,
-                                      "ProcessId":  14448,
-                                      "ProcessName":  "explorer"
-                                  },
-                                  {
-                                      "Handle":  122095354,
-                                      "ProcessId":  15712,
-                                      "ProcessName":  "IslandTaskbar"
+                                      "Handle":  9634896,
+                                      "ProcessId":  18948,
+                                      "ProcessName":  "Notepad"
                                   }
                               ],
-                  "SampleCount":  72,
+                  "SampleCount":  74,
                   "SamplingIntervalMilliseconds":  50,
-                  "TestBecameForeground":  true,
-                  "PreviousWindowRetainedForeground":  false
+                  "LastInputTickBefore":  95342562,
+                  "ObservedInputTicks":  [
+                                             95342562
+                                         ],
+                  "InputDetectedDuringObservation":  false,
+                  "TestBecameForeground":  false,
+                  "PreviousWindowRetainedForeground":  true
               },
     "Geometry":  {
                      "WindowRect":  {
@@ -73,10 +68,10 @@
                      "TopOffsetPixels":  0,
                      "WindowDpi":  120,
                      "CaptionOrSizingBorderPresent":  true,
-                     "TopmostStylePresent":  true
+                     "TopmostStylePresent":  false
                  },
     "FinalWindowClose":  {
-                             "ProcessId":  15712,
+                             "ProcessId":  18756,
                              "ExitCode":  0
                          },
     "WorkArea":  {

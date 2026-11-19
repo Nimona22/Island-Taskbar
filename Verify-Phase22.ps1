@@ -1,6 +1,10 @@
 # Temporary Phase 2.2 runtime verification only. Does not modify application code or Windows settings.
 $ErrorActionPreference = 'Stop'
 $reportPath = Join-Path $PSScriptRoot 'Phase22.RuntimeResults.json'
+if (Test-Path -LiteralPath $reportPath) {
+    $archivePath = Join-Path $PSScriptRoot ('Phase22.RuntimeResults.' + (Get-Date).ToString('yyyyMMdd-HHmmss-fff') + '.json')
+    Copy-Item -LiteralPath $reportPath -Destination $archivePath -ErrorAction Stop
+}
 $executable = Join-Path $PSScriptRoot 'src\IslandTaskbar\bin\x64\Debug\net10.0-windows10.0.26100.0\IslandTaskbar.exe'
 $report = [ordered]@{ Date = (Get-Date).ToString('o'); Evidence = 'Native API measurements with manual close-button input'; Criteria = [ordered]@{} }
 
@@ -16,6 +20,7 @@ public static class Phase22VerifyNative
 {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] public struct Monitor { public int Size; public Rect Bounds, Work; public uint Flags; }
+    [StructLayout(LayoutKind.Sequential)] public struct LastInput { public uint Size, Tick; }
     public delegate bool MonitorCallback(IntPtr monitor, IntPtr dc, IntPtr rect, IntPtr data);
     public delegate bool WindowCallback(IntPtr window, IntPtr data);
     [DllImport("user32.dll", SetLastError=true)] static extern bool EnumDisplayMonitors(IntPtr dc, IntPtr clip, MonitorCallback callback, IntPtr data);
@@ -26,6 +31,7 @@ public static class Phase22VerifyNative
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
     [DllImport("user32.dll", SetLastError=true)] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
+    [DllImport("user32.dll", SetLastError=true)] static extern bool GetLastInputInfo(ref LastInput input);
     [DllImport("user32.dll", EntryPoint="GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr window, int index);
     [DllImport("user32.dll")] static extern bool EnumThreadWindows(uint thread, WindowCallback callback, IntPtr data);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowTextW(IntPtr window, StringBuilder text, int capacity);
@@ -41,6 +47,12 @@ public static class Phase22VerifyNative
         if (!EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, callback, IntPtr.Zero)) throw new Win32Exception(Marshal.GetLastWin32Error());
         if (!found) throw new InvalidOperationException("No primary monitor was returned.");
         return result;
+    }
+    public static uint LastInputTick()
+    {
+        LastInput input = new LastInput(); input.Size = (uint)Marshal.SizeOf(typeof(LastInput));
+        if (!GetLastInputInfo(ref input)) throw new Win32Exception(Marshal.GetLastWin32Error());
+        return input.Tick;
     }
     public static IntPtr ThreadWindow(uint thread)
     {
@@ -90,24 +102,43 @@ public static class Phase22VerifyNative
     }
 
     Write-Host ''
-    Write-Host 'STARTUP FOCUS CHECK: open a blank Notepad window, then return here.'
-    Read-Host 'Press Enter when Notepad is ready' | Out-Null
-    Write-Host 'Click inside Notepad during the next 10 seconds. Then leave mouse and keyboard untouched until the test window appears.'
-    Start-Sleep -Seconds 10
+    Write-Host 'STARTUP FOCUS CHECK: open a blank Notepad window and click inside it now.'
+    Write-Host 'The test will launch automatically once Notepad is active and input has stopped.'
+    Write-Host 'After the diagnostic window appears, leave mouse and keyboard untouched for 30 seconds.'
+    $notepadDeadline = [DateTime]::UtcNow.AddMinutes(5)
+    $notepadReady = $false
+    while ([DateTime]::UtcNow -lt $notepadDeadline) {
+        $candidateForeground = Get-Foreground
+        if ($candidateForeground.ProcessName -eq 'Notepad') {
+            $candidateInputTick = [Phase22VerifyNative]::LastInputTick()
+            Start-Sleep -Seconds 1
+            $confirmedForeground = Get-Foreground
+            if ($confirmedForeground.Handle -eq $candidateForeground.Handle -and [Phase22VerifyNative]::LastInputTick() -eq $candidateInputTick) {
+                $notepadReady = $true
+                break
+            }
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    if (-not $notepadReady) { throw 'Notepad was not observed active. Open a blank Notepad window, click inside it, and retry.' }
+    $beforeInputTick = [Phase22VerifyNative]::LastInputTick()
     $beforeForeground = Get-Foreground
     $displayBefore = Get-Display
     $process = Start-Process -FilePath $executable -WorkingDirectory ([IO.Path]::GetDirectoryName($executable)) -PassThru
     $samples = @()
+    $inputTicks = @()
     $sampleDeadline = [DateTime]::UtcNow.AddSeconds(5)
     while ([DateTime]::UtcNow -lt $sampleDeadline -and -not $process.HasExited) {
         $samples += Get-Foreground
+        $inputTicks += [Phase22VerifyNative]::LastInputTick()
         Start-Sleep -Milliseconds 50
         $process.Refresh()
     }
     $becameForeground = @($samples | Where-Object { $_.ProcessId -eq $process.Id }).Count -gt 0
+    $inputDetected = @($inputTicks | Where-Object { $_ -ne $beforeInputTick }).Count -gt 0
     $retainedForeground = $beforeForeground.Handle -ne 0 -and $samples.Count -gt 0 -and @($samples | Where-Object { $_.Handle -ne $beforeForeground.Handle }).Count -eq 0
-    $report.Focus = [ordered]@{ Before = $beforeForeground; Samples = @($samples | ForEach-Object { [pscustomobject]$_ } | Select-Object Handle,ProcessId,ProcessName -Unique); SampleCount = $samples.Count; SamplingIntervalMilliseconds = 50; TestBecameForeground = $becameForeground; PreviousWindowRetainedForeground = $retainedForeground }
-    $report.Criteria.StartupFocus = $(if ($becameForeground) { 'FAIL' } elseif ($retainedForeground) { 'PASS' } else { 'NOT VERIFIED' })
+    $report.Focus = [ordered]@{ Before = $beforeForeground; Samples = @($samples | ForEach-Object { [pscustomobject]$_ } | Select-Object Handle,ProcessId,ProcessName -Unique); SampleCount = $samples.Count; SamplingIntervalMilliseconds = 50; LastInputTickBefore = $beforeInputTick; ObservedInputTicks = @($inputTicks | Select-Object -Unique); InputDetectedDuringObservation = $inputDetected; TestBecameForeground = $becameForeground; PreviousWindowRetainedForeground = $retainedForeground }
+    $report.Criteria.StartupFocus = $(if ($inputDetected) { 'NOT VERIFIED' } elseif ($becameForeground) { 'FAIL' } elseif ($retainedForeground) { 'PASS' } else { 'NOT VERIFIED' })
 
     $handle = [IntPtr]::Zero
     $handleDeadline = [DateTime]::UtcNow.AddSeconds(10)
