@@ -26,14 +26,13 @@ namespace IslandTaskbar
         }
 
         /// <summary>
-        /// Creates and initializes the Phase 2.3 test window without requesting activation.
+        /// Creates and initializes the Phase 3.1 prototype without requesting activation.
         /// </summary>
         /// <param name="args">Launch activation details provided by the Windows App SDK.</param>
         protected override void OnLaunched(LaunchActivatedEventArgs args)
         {
             _mainWindow = new IslandWindow();
             _mainWindow.Closed += OnMainWindowClosed;
-            _mainWindow.TemporaryCloseRequested += OnTemporaryCloseRequested;
             _mainWindow.SurfaceLayoutChanged += OnSurfaceLayoutChanged;
 
             try
@@ -47,7 +46,6 @@ namespace IslandTaskbar
             catch
             {
                 _mainWindow.Closed -= OnMainWindowClosed;
-                _mainWindow.TemporaryCloseRequested -= OnTemporaryCloseRequested;
                 _mainWindow.SurfaceLayoutChanged -= OnSurfaceLayoutChanged;
                 _windowController?.Dispose();
                 _windowController = null;
@@ -55,11 +53,6 @@ namespace IslandTaskbar
                 _mainWindow = null;
                 throw;
             }
-        }
-
-        private void OnTemporaryCloseRequested(object? sender, System.EventArgs e)
-        {
-            _mainWindow?.Close();
         }
 
         private void OnSurfaceLayoutChanged(object? sender, IslandSurfaceLayoutEventArgs e)
@@ -97,7 +90,6 @@ namespace IslandTaskbar
             if (_mainWindow is not null)
             {
                 _mainWindow.Closed -= OnMainWindowClosed;
-                _mainWindow.TemporaryCloseRequested -= OnTemporaryCloseRequested;
                 _mainWindow.SurfaceLayoutChanged -= OnSurfaceLayoutChanged;
                 _windowController?.Dispose();
                 _windowController = null;

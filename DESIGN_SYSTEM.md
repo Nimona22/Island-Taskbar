@@ -265,6 +265,59 @@ Every interactive component must define the states that apply to it:
 
 ---
 
+### Phase 3.1 provisional prototype values
+
+The assigned Phase 3.1 visual prototype uses a 112×32 DIP idle notch and a
+320×64 DIP expanded panel, with an 8 DIP gap above the floating panel. Its
+transparent host envelope is 368×88 DIP, converted to physical pixels at the
+existing controller boundary. These dimensions are provisional (OD-019).
+Existing `Radius.Notch`, `Radius.Island`, spacing, color and type tokens apply.
+The expanded panel rounds all four corners; the idle notch has square upper
+corners at the display edge.
+
+For this prototype only, `Motion.Standard` is 220 ms: cubic ease-out for
+expansion and ease-in for collapse, without bounce. The Windows reduced-motion
+setting removes movement. This does not close OD-001 for the final product.
+The surface uses the existing dark fallback palette with a subtle vertical
+gradient and `Border.Subtle`; desktop backdrop blur is not implemented.
+
+### Phase 3.2 Music Mode prototype values
+
+The Phase 3.2 assignment preserves the 112×32 DIP idle notch and uses a
+400×72 DIP music panel within a 448×96 DIP host. The existing 8 DIP top gap,
+corner radii, 220 ms `Motion.Standard`, palette and typography remain.
+Provisional music tokens: `Music.Control.Size` 32 DIP, `Music.Play.Size` 40 DIP,
+`Music.Play.Radius` 20 DIP, `Music.Collapse.Size` 24 DIP,
+`Music.Waveform.Height` 28 DIP, `Music.Waveform.BarWidth` 3 DIP,
+`Music.Waveform.BarGap` 5 DIP, `Music.Waveform.BarRadius` 1.5 DIP.
+
+Previous/play-pause/next act only on local prototype state. Previous/next cycle
+three deterministic illustrative patterns, without track titles, artists,
+artwork or audio data. The visible state caption begins with “Illustrative”.
+The waveform uses fixed shapes and a deterministic time-based transform while
+playing; it freezes while paused and stops in idle. Windows reduced motion
+uses a static pattern. None of these visuals represent audio reactivity.
+
+### Selected warm-glass Music Mode (native Phase 3.2 update)
+
+The user's selected design supersedes the earlier 400×72 DIP music study.
+Music Mode is 280×64 DIPs, attached at y=0, with 12 DIP concave shoulders and
+22 DIP lower corners. The idle 112×32 notch and its original tokens remain.
+The host is 328×80 DIPs. A shared sampled outline defines paint and native input.
+
+`Music.Surface` uses 90%/85% warm alpha stops over the platform host backdrop
+brush, without adding a blur effect or CPU-based capture. `Music.Play.Surface` uses the supplied
+reference's orange direction. Controls are 24×28 DIPs, play/pause is 32×32,
+icons are 14 DIPs; the source artwork renders at 40 DIPs (80-pixel decode) inside
+a 52 DIP ring. The illustrative waveform is 42×22 DIPs with eleven 2 DIP bars,
+2 DIP gaps and 1 DIP bar radii. Ring strokes are 1.3 DIPs. The small visible
+“Demo” label exposes the playing/paused/pattern state through its accessible name.
+
+Artwork rotates over 14 seconds; the ring and waveform use deterministic
+composition animations. Animation controllers pause them in hidden/empty-viewport,
+collapsed, paused and reduced-motion states. The UI timer runs only for geometry
+transitions. No performance guarantee is made without measurement.
+
 ## 9. Motion and Timing
 
 Motion should make the notch-to-island transition feel continuous and deliberate.

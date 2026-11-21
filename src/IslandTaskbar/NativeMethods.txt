@@ -1,6 +1,7 @@
 ClientToScreen
 CombineRgn
 CreateRectRgn
+CreatePolygonRgn
 CreateRoundRectRgn
 DeleteObject
 GetWindowRect

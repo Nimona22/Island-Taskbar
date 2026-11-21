@@ -74,6 +74,22 @@ namespace IslandTaskbar.Adapters.Implementations
         public void MoveAndResize(int x, int y, int width, int height)
         {
             AppWindow.MoveAndResize(new RectInt32(x, y, width, height));
+            // Phase 3.1 runtime measured a retained client inset (3 physical pixels at 125%).
+            // Anchor the painted client surface to y, using the same offset query as SetSurfaceRegion.
+            // This changes placement only; presenter, activation and topmost behavior stay as configured.
+            HWND hwnd = (HWND)_windowHandle;
+            RECT windowBounds;
+            System.Drawing.Point clientOrigin = default;
+            if (!PInvoke.GetWindowRect(hwnd, &windowBounds) || !PInvoke.ClientToScreen(hwnd, &clientOrigin))
+            {
+                throw NativeFailure("Read top-edge client inset");
+            }
+
+            int topInset = checked(clientOrigin.Y - windowBounds.top);
+            if (topInset != 0)
+            {
+                AppWindow.Move(new PointInt32(x, checked(y - topInset)));
+            }
         }
 
         public void ShowWithoutActivation()
@@ -87,10 +103,10 @@ namespace IslandTaskbar.Adapters.Implementations
             _windowHandle = 0;
         }
 
-        public void SetSurfaceRegion(int left, int top, int width, int height, int lowerCornerRadius)
+        public void SetSurfaceRegion(int left, int top, int width, int height, int lowerCornerRadius, int upperCornerRadius)
         {
             _ = AppWindow;
-            if (width <= 0 || height <= 0 || lowerCornerRadius < 0)
+            if (width <= 0 || height <= 0 || lowerCornerRadius < 0 || upperCornerRadius < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(width), "The surface must have positive dimensions.");
             }
@@ -109,29 +125,40 @@ namespace IslandTaskbar.Adapters.Implementations
             int right = checked(x + width);
             int bottom = checked(y + height);
             int radius = Math.Min(lowerCornerRadius, Math.Min(width, height) / 2);
+            int upperRadius = Math.Min(upperCornerRadius, Math.Min(width, height) / 2);
             HRGN region = default;
-            HRGN squareTop = default;
+            HRGN upperRegion = default;
+            HRGN upperHalf = default;
+            HRGN lowerHalf = default;
 
             try
             {
                 region = radius == 0
                     ? PInvoke.CreateRectRgn(x, y, right, bottom)
-                    : PInvoke.CreateRoundRectRgn(x, y, right, bottom, radius * 2, radius * 2);
+                    // GDI's rounded-region endpoint removes a pixel; preserve the measured XAML extent.
+                    : PInvoke.CreateRoundRectRgn(x, y, checked(right + 1), checked(bottom + 1), radius * 2, radius * 2);
                 if (region == default)
                 {
                     throw NativeFailure("Create island region");
                 }
 
-                if (radius > 0)
+                if (upperRadius != radius)
                 {
-                    // Radius.Island has square upper corners and matching rounded lower corners.
-                    squareTop = PInvoke.CreateRectRgn(x, y, right, bottom - radius);
-                    if (squareTop == default)
+                    // Keep the region approach: union independently rounded upper/lower halves.
+                    int middle = y + height / 2;
+                    upperRegion = upperRadius == 0
+                        ? PInvoke.CreateRectRgn(x, y, right, bottom)
+                        : PInvoke.CreateRoundRectRgn(x, y, checked(right + 1), checked(bottom + 1), upperRadius * 2, upperRadius * 2);
+                    upperHalf = PInvoke.CreateRectRgn(x, y, right, middle);
+                    lowerHalf = PInvoke.CreateRectRgn(x, middle, right, bottom);
+                    if (upperRegion == default || upperHalf == default || lowerHalf == default)
                     {
-                        throw NativeFailure("Create square upper region");
+                        throw NativeFailure("Create paired corner regions");
                     }
 
-                    if ((int)PInvoke.CombineRgn(region, region, squareTop, RGN_COMBINE_MODE.RGN_OR) == 0)
+                    if ((int)PInvoke.CombineRgn(upperRegion, upperRegion, upperHalf, RGN_COMBINE_MODE.RGN_AND) == 0
+                        || (int)PInvoke.CombineRgn(region, region, lowerHalf, RGN_COMBINE_MODE.RGN_AND) == 0
+                        || (int)PInvoke.CombineRgn(region, region, upperRegion, RGN_COMBINE_MODE.RGN_OR) == 0)
                     {
                         throw NativeFailure("Combine island region");
                     }
@@ -146,7 +173,51 @@ namespace IslandTaskbar.Adapters.Implementations
             }
             finally
             {
-                DeleteOwnedRegion(squareTop);
+                DeleteOwnedRegion(upperRegion);
+                DeleteOwnedRegion(upperHalf);
+                DeleteOwnedRegion(lowerHalf);
+                DeleteOwnedRegion(region);
+            }
+        }
+
+        public void SetSurfacePolygon(int[] coordinates)
+        {
+            _ = AppWindow;
+            ArgumentNullException.ThrowIfNull(coordinates);
+            if (coordinates.Length < 6 || coordinates.Length % 2 != 0)
+            {
+                throw new ArgumentException("An outline requires complete coordinate pairs.", nameof(coordinates));
+            }
+
+            HWND hwnd = (HWND)_windowHandle;
+            RECT bounds;
+            System.Drawing.Point origin = default;
+            if (!PInvoke.GetWindowRect(hwnd, &bounds) || !PInvoke.ClientToScreen(hwnd, &origin))
+            {
+                throw NativeFailure("Read polygon client offset");
+            }
+
+            var points = new System.Drawing.Point[coordinates.Length / 2];
+            for (int index = 0; index < points.Length; index++)
+            {
+                points[index] = new(checked(coordinates[index * 2] + origin.X - bounds.left),
+                    checked(coordinates[index * 2 + 1] + origin.Y - bounds.top));
+            }
+
+            HRGN region = default;
+            try
+            {
+                fixed (System.Drawing.Point* first = points)
+                {
+                    region = PInvoke.CreatePolygonRgn(first, points.Length, CREATE_POLYGON_RGN_MODE.WINDING);
+                }
+
+                if (region == default) throw NativeFailure("Create notch polygon");
+                if (PInvoke.SetWindowRgn(hwnd, region, true) == 0) throw NativeFailure("Set notch polygon");
+                region = default;
+            }
+            finally
+            {
                 DeleteOwnedRegion(region);
             }
         }
