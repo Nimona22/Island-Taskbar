@@ -1,10 +1,15 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Threading;
+using System;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using IslandTaskbar.Adapters.Implementations;
 using IslandTaskbar.Controllers;
 using IslandTaskbar.Models;
 using IslandTaskbar.Presentation.Windows;
+using IslandTaskbar.Services;
+using IslandTaskbar.ViewModels;
 
 namespace IslandTaskbar
 {
@@ -29,9 +34,10 @@ namespace IslandTaskbar
         /// Creates and initializes the Phase 3.1 prototype without requesting activation.
         /// </summary>
         /// <param name="args">Launch activation details provided by the Windows App SDK.</param>
-        protected override void OnLaunched(LaunchActivatedEventArgs args)
+        protected override async void OnLaunched(LaunchActivatedEventArgs args)
         {
-            _mainWindow = new IslandWindow();
+            _mainWindow = new IslandWindow(new MusicPrototypeViewModel(
+                new MediaPlaybackService(new WindowsMediaSessionService()), DispatcherQueue.GetForCurrentThread()));
             _mainWindow.Closed += OnMainWindowClosed;
             _mainWindow.SurfaceLayoutChanged += OnSurfaceLayoutChanged;
 
@@ -52,6 +58,11 @@ namespace IslandTaskbar
                 _mainWindow.Close();
                 _mainWindow = null;
                 throw;
+            }
+            try { await _mainWindow.InitializeMediaAsync(CancellationToken.None); }
+            catch (OperationCanceledException) when (_mainWindow is null)
+            {
+                // Normal close cancels a still-pending GSMTC manager request.
             }
         }
 

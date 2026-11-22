@@ -2,6 +2,8 @@
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -51,10 +53,13 @@ namespace IslandTaskbar.Presentation.Windows
         private IslandSurfaceLayoutEventArgs? _lastLayout;
 
         internal event EventHandler<IslandSurfaceLayoutEventArgs>? SurfaceLayoutChanged;
-        internal MusicPrototypeViewModel MusicState { get; } = new();
+        internal MusicPrototypeViewModel MusicState { get; }
+        private string? _lastMediaSessionId;
+        private bool _lastMediaPlaying;
 
-        public IslandWindow()
+        internal IslandWindow(MusicPrototypeViewModel musicState)
         {
+            MusicState = musicState;
             InitializeComponent();
             SystemBackdrop = new TransparentIslandBackdrop();
             ResourceDictionary resources = Application.Current.Resources;
@@ -115,12 +120,26 @@ namespace IslandTaskbar.Presentation.Windows
             _uiSettings.AnimationsEnabledChanged += OnAnimationsEnabledChanged;
             VisibilityChanged += OnPrototypeVisibilityChanged;
             Closed += OnPrototypeClosed;
+            MusicState.MediaStateChanged += OnMediaStateChanged;
             ApplyProgress(0);
+        }
+
+        internal Task InitializeMediaAsync(CancellationToken cancellationToken) => MusicState.InitializeAsync(cancellationToken);
+
+        private void OnMediaStateChanged(object? sender, EventArgs e)
+        {
+            if (_isClosed) return;
+            if (!MusicState.HasSession) SetExpanded(false);
+            else if (_lastMediaSessionId != MusicState.SessionId || (!_lastMediaPlaying && MusicState.IsPlaying))
+                SetExpanded(true);
+            _lastMediaSessionId = MusicState.SessionId;
+            _lastMediaPlaying = MusicState.IsPlaying;
+            UpdateVisualTimer();
         }
 
         private void OnIslandToggleClick(object sender, RoutedEventArgs e)
         {
-            SetExpanded(!_isExpanded);
+            if (MusicState.HasSession) SetExpanded(!_isExpanded);
         }
 
         private void OnCollapseClick(object sender, RoutedEventArgs e) => SetExpanded(false);
@@ -136,6 +155,7 @@ namespace IslandTaskbar.Presentation.Windows
 
         private void SetExpanded(bool expanded)
         {
+            if (_isExpanded == expanded) return;
             _isExpanded = expanded;
             IslandToggle.IsHitTestVisible = !expanded;
             IslandToggle.IsTabStop = !expanded;
@@ -188,40 +208,19 @@ namespace IslandTaskbar.Presentation.Windows
             UpdateVisualTimer();
         }
 
-        private void OnPlayPauseClick(object sender, RoutedEventArgs e)
+        private async void OnPlayPauseClick(object sender, RoutedEventArgs e)
         {
-            MusicState.TogglePlayback();
-            UpdateVisualTimer();
+            await MusicState.ExecuteAsync(MediaCommand.TogglePlayback, CancellationToken.None);
         }
 
-        private void OnPreviousClick(object sender, RoutedEventArgs e)
+        private async void OnPreviousClick(object sender, RoutedEventArgs e)
         {
-            MusicState.Previous();
-            ResetIllustrativePattern();
+            await MusicState.ExecuteAsync(MediaCommand.Previous, CancellationToken.None);
         }
 
-        private void OnNextClick(object sender, RoutedEventArgs e)
+        private async void OnNextClick(object sender, RoutedEventArgs e)
         {
-            MusicState.Next();
-            ResetIllustrativePattern();
-        }
-
-        private void ResetIllustrativePattern()
-        {
-            if (_motionPrepared)
-            {
-                for (int index = 0; index < _waveBars.Count; index++)
-                {
-                    var visual = ElementCompositionPreview.GetElementVisual(_waveBars[index]);
-                    float scale = (float)MusicState.GetIllustrativeScale(index, 0);
-                    visual.StopAnimation("Scale.Y");
-                    _waveAnimations[index].InsertKeyFrame(0, scale * .55f);
-                    _waveAnimations[index].InsertKeyFrame(1, scale);
-                    visual.StartAnimation("Scale.Y", _waveAnimations[index]);
-                }
-                _musicMotionActive = null;
-            }
-            UpdateVisualTimer();
+            await MusicState.ExecuteAsync(MediaCommand.Next, CancellationToken.None);
         }
 
         private void PrepareMusicMotion()
@@ -414,6 +413,8 @@ namespace IslandTaskbar.Presentation.Windows
         private void OnPrototypeClosed(object sender, WindowEventArgs args)
         {
             _isClosed = true;
+            MusicState.MediaStateChanged -= OnMediaStateChanged;
+            MusicState.Dispose();
             _transitionTimer.Stop();
             _transitionTimer.Tick -= OnTransitionTick;
             _transitionClock.Stop();

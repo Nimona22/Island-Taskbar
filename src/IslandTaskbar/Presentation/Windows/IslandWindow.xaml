@@ -65,7 +65,7 @@
             <Button x:Name="IslandToggle" Style="{StaticResource PrototypeIconButton}"
                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                     AutomationProperties.AutomationId="IslandPrototypeToggle"
-                    AutomationProperties.Name="Expand IslandTaskbar music prototype; placeholder Tiles icon"
+                    AutomationProperties.Name="Expand IslandTaskbar music; placeholder Tiles icon"
                     ToolTipService.ToolTip="Expand IslandTaskbar" Click="OnIslandToggleClick">
                 <FontIcon x:Name="NotchIcon" FontFamily="Segoe Fluent Icons" Glyph="&#xECA5;"
                           FontSize="{StaticResource Type.Display.Size}"
@@ -114,8 +114,9 @@
                             Width="{StaticResource Music.Control.Size}" Height="{StaticResource Music.Control.Height}"
                             Foreground="{StaticResource Music.Text.Primary}"
                             AutomationProperties.AutomationId="MusicPrototypePrevious"
-                            AutomationProperties.Name="Previous track prototype; previous illustrative pattern"
-                            ToolTipService.ToolTip="Previous (prototype)" Click="OnPreviousClick">
+                            AutomationProperties.Name="Previous track"
+                            IsEnabled="{x:Bind MusicState.CanPrevious, Mode=OneWay}"
+                            ToolTipService.ToolTip="Previous track" Click="OnPreviousClick">
                         <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE892;"
                                   FontSize="{StaticResource Music.Control.IconSize}" />
                     </Button>
@@ -124,6 +125,8 @@
                             Background="{StaticResource Music.Play.Surface}" CornerRadius="{StaticResource Music.Play.Radius}"
                             AutomationProperties.AutomationId="MusicPrototypePlayPause"
                             AutomationProperties.Name="{x:Bind MusicState.PlayPauseName, Mode=OneWay}"
+                            IsEnabled="{x:Bind MusicState.CanTogglePlayback, Mode=OneWay}"
+                            AutomationProperties.HelpText="{x:Bind MusicState.StatusText, Mode=OneWay}"
                             ToolTipService.ToolTip="{x:Bind MusicState.PlayPauseName, Mode=OneWay}" Click="OnPlayPauseClick">
                         <FontIcon FontFamily="Segoe Fluent Icons" Glyph="{x:Bind MusicState.PlayPauseGlyph, Mode=OneWay}"
                                   FontSize="{StaticResource Music.Control.IconSize}" />
@@ -132,8 +135,9 @@
                             Width="{StaticResource Music.Control.Size}" Height="{StaticResource Music.Control.Height}"
                             Foreground="{StaticResource Music.Text.Primary}"
                             AutomationProperties.AutomationId="MusicPrototypeNext"
-                            AutomationProperties.Name="Next track prototype; next illustrative pattern"
-                            ToolTipService.ToolTip="Next (prototype)" Click="OnNextClick">
+                            AutomationProperties.Name="Next track"
+                            IsEnabled="{x:Bind MusicState.CanNext, Mode=OneWay}"
+                            ToolTipService.ToolTip="Next track" Click="OnNextClick">
                         <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE893;"
                                   FontSize="{StaticResource Music.Control.IconSize}" />
                     </Button>
@@ -142,7 +146,7 @@
                         Width="{StaticResource Music.Collapse.Size}" Height="{StaticResource Music.Collapse.Size}"
                         VerticalAlignment="Center" Foreground="{StaticResource Music.Text.Secondary}"
                         AutomationProperties.AutomationId="IslandPrototypeCollapse"
-                        AutomationProperties.Name="Return music prototype to idle notch"
+                        AutomationProperties.Name="Return music to idle notch"
                         ToolTipService.ToolTip="Return to idle" Click="OnCollapseClick">
                     <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE70E;"
                               FontSize="{StaticResource Type.Caption.Size}" />
