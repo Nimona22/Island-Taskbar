@@ -1,6 +1,8 @@
+using System;
+
 namespace IslandTaskbar.Models
 {
-    internal enum MediaPlaybackState { Unknown, Playing, Paused, Stopped, Closed }
+    internal enum MediaPlaybackState { Unknown, Playing, Paused, Stopped, Closed, Ended }
     internal enum MediaCommand { TogglePlayback, Previous, Next }
     internal enum MediaCommandResult { Success, Unsupported, Unavailable, Failed }
 
@@ -9,8 +11,17 @@ namespace IslandTaskbar.Models
         bool CanPlay, bool CanPause, bool CanToggle, bool CanPrevious, bool CanNext)
     {
         public bool IsPlaying => State == MediaPlaybackState.Playing;
-        public bool IsUsable => State != MediaPlaybackState.Closed &&
-            (IsPlaying || State == MediaPlaybackState.Paused || CanPlay || CanToggle);
+        // Command capabilities can remain enabled after playback stops; they are not availability.
+        public bool IsUsable => State is MediaPlaybackState.Playing or MediaPlaybackState.Paused;
+
+        internal static MediaPlaybackState ResolvePlaybackState(MediaPlaybackState state,
+            TimeSpan startTime, TimeSpan endTime, TimeSpan position)
+        {
+            // GSMTC has no Ended status. Use an explicit, known endpoint only when not playing.
+            // Unknown/live durations and stale endpoints while playing must not dismiss the panel.
+            return state == MediaPlaybackState.Paused && endTime > startTime && position >= endTime
+                ? MediaPlaybackState.Ended : state;
+        }
         public bool Supports(MediaCommand command) => command switch
         {
             MediaCommand.TogglePlayback => CanToggle || (IsPlaying ? CanPause : CanPlay),
@@ -20,5 +31,6 @@ namespace IslandTaskbar.Models
         };
     }
 
-    internal sealed record MediaPlaybackSnapshot(MediaSessionState? Session, string? UnavailableReason);
+    internal sealed record MediaPlaybackSnapshot(MediaSessionState? Session, string? UnavailableReason,
+        bool IsDismissalPending = false);
 }

@@ -61,6 +61,8 @@ namespace IslandTaskbar.Presentation.Windows
         {
             MusicState = musicState;
             InitializeComponent();
+            // Window x:Bind normally waits for Activated; this overlay deliberately avoids activation.
+            Bindings.Initialize();
             SystemBackdrop = new TransparentIslandBackdrop();
             ResourceDictionary resources = Application.Current.Resources;
             _notchRadius = ((CornerRadius)resources["Radius.Notch"]).BottomLeft;
@@ -129,8 +131,8 @@ namespace IslandTaskbar.Presentation.Windows
         private void OnMediaStateChanged(object? sender, EventArgs e)
         {
             if (_isClosed) return;
-            if (!MusicState.HasSession) SetExpanded(false);
-            else if (_lastMediaSessionId != MusicState.SessionId || (!_lastMediaPlaying && MusicState.IsPlaying))
+            if (!MusicState.HasSession && !MusicState.IsSessionTransitioning) SetExpanded(false);
+            else if (MusicState.HasSession && (_lastMediaSessionId != MusicState.SessionId || (!_lastMediaPlaying && MusicState.IsPlaying)))
                 SetExpanded(true);
             _lastMediaSessionId = MusicState.SessionId;
             _lastMediaPlaying = MusicState.IsPlaying;
@@ -413,6 +415,7 @@ namespace IslandTaskbar.Presentation.Windows
         private void OnPrototypeClosed(object sender, WindowEventArgs args)
         {
             _isClosed = true;
+            Bindings.StopTracking();
             MusicState.MediaStateChanged -= OnMediaStateChanged;
             MusicState.Dispose();
             _transitionTimer.Stop();

@@ -33,12 +33,14 @@ namespace IslandTaskbar.ViewModels
         internal event EventHandler? MediaStateChanged;
         public bool IsPlaying => _snapshot.Session?.IsPlaying == true;
         public bool HasSession => _snapshot.Session is not null;
+        public bool IsSessionTransitioning => _snapshot.IsDismissalPending;
         public string? SessionId => _snapshot.Session?.Id;
         public bool CanTogglePlayback => !_busy && _snapshot.Session?.Supports(MediaCommand.TogglePlayback) == true;
         public bool CanPrevious => !_busy && _snapshot.Session?.CanPrevious == true;
         public bool CanNext => !_busy && _snapshot.Session?.CanNext == true;
         public string StatusText => _commandStatus ?? _snapshot.UnavailableReason ??
-            (HasSession ? $"{_snapshot.Session!.State}; waveform is illustrative" : "No active media session");
+            (HasSession ? $"{_snapshot.Session!.State}; waveform is illustrative" :
+                IsSessionTransitioning ? "Waiting for media session" : "No active media session");
         public string PlayPauseName => IsPlaying ? "Pause media" : "Play media";
         public string PlayPauseGlyph => IsPlaying ? "\uE769" : "\uE768";
         internal int BarCount => IllustrativePattern.Length;
@@ -100,7 +102,7 @@ namespace IslandTaskbar.ViewModels
 
         private void NotifyState()
         {
-            foreach (string property in new[] { nameof(IsPlaying), nameof(HasSession), nameof(SessionId),
+            foreach (string property in new[] { nameof(IsPlaying), nameof(HasSession), nameof(IsSessionTransitioning), nameof(SessionId),
                 nameof(CanTogglePlayback), nameof(CanPrevious), nameof(CanNext), nameof(StatusText),
                 nameof(PlayPauseName), nameof(PlayPauseGlyph) })
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));

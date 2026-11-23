@@ -13,11 +13,16 @@ namespace IslandTaskbar.Services
         private readonly IMediaSessionService _adapter;
         private readonly object _gate = new();
         private MediaPlaybackSnapshot _current = new(null, null);
+        private readonly TimeProvider _timeProvider;
+        private static readonly TimeSpan DismissalGracePeriod = TimeSpan.FromMilliseconds(450);
+        private ITimer? _dismissalTimer;
+        private long _dismissalGeneration;
         private bool _disposed;
 
-        public MediaPlaybackService(IMediaSessionService adapter)
+        public MediaPlaybackService(IMediaSessionService adapter, TimeProvider? timeProvider = null)
         {
             _adapter = adapter;
+            _timeProvider = timeProvider ?? TimeProvider.System;
             _adapter.SessionsChanged += OnSessionsChanged;
         }
 
@@ -32,12 +37,12 @@ namespace IslandTaskbar.Services
 
         private void OnSessionsChanged(object? sender, EventArgs e) => Refresh();
 
-        private void Refresh()
+        private void Refresh(bool dismissalElapsed = false, long? expectedGeneration = null)
         {
             bool changed;
             lock (_gate)
             {
-                if (_disposed) return;
+                if (_disposed || (expectedGeneration.HasValue && expectedGeneration != _dismissalGeneration)) return;
                 var usable = _adapter.Sessions.Where(session => session.IsUsable).ToArray();
                 var windowsCurrent = usable.FirstOrDefault(session => session.Id == _adapter.CurrentSessionId);
                 var previous = usable.FirstOrDefault(session => session.Id == _current.Session?.Id);
@@ -45,11 +50,34 @@ namespace IslandTaskbar.Services
                     ?? (previous?.IsPlaying == true ? previous : null)
                     ?? usable.FirstOrDefault(session => session.IsPlaying)
                     ?? windowsCurrent ?? previous ?? usable.FirstOrDefault();
-                var next = new MediaPlaybackSnapshot(selected, _adapter.UnavailableReason);
+                bool pending = selected is null && !dismissalElapsed &&
+                    (_current.Session is not null || _current.IsDismissalPending);
+                if (pending)
+                {
+                    // One deadline per gap: repeated empty/stopped notifications cannot starve dismissal.
+                    if (_dismissalTimer is null)
+                    {
+                        long generation = ++_dismissalGeneration;
+                        _dismissalTimer = _timeProvider.CreateTimer(_ => Refresh(true, generation), null,
+                            DismissalGracePeriod, Timeout.InfiniteTimeSpan);
+                    }
+                }
+                else CancelDismissal();
+
+                // Stop motion/disable commands immediately; only presentation dismissal is deferred.
+                var next = new MediaPlaybackSnapshot(selected, _adapter.UnavailableReason, pending);
                 changed = next != _current;
                 _current = next;
             }
             if (changed) Changed?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void CancelDismissal()
+        {
+            // Invalidates callbacks already queued before disposal or a replacement session.
+            ++_dismissalGeneration;
+            _dismissalTimer?.Dispose();
+            _dismissalTimer = null;
         }
 
         public Task<MediaCommandResult> ExecuteAsync(MediaCommand command, CancellationToken cancellationToken)
@@ -84,6 +112,7 @@ namespace IslandTaskbar.Services
             {
                 if (_disposed) return;
                 _disposed = true;
+                CancelDismissal();
                 _adapter.SessionsChanged -= OnSessionsChanged;
             }
             _adapter.Dispose();
