@@ -16,8 +16,8 @@ if [ -n "$COMMITTED_SECRETS" ]; then
   exit 1
 fi
 
-# 2. Block working phase files from being pushed
-COMMITTED_PHASE=$(git diff --diff-filter=d --name-only origin/main..HEAD 2>/dev/null | grep -E '^(Phase[0-9]|Verify-Phase|Inspect-Phase|Diagnose-Phase|\.diagnostics/)' || true)
+# 2. Block working phase and diagnostic files from being pushed
+COMMITTED_PHASE=$(git diff --diff-filter=d --name-only origin/main..HEAD 2>/dev/null | grep -E '^(Phase[0-9]|Verify-Phase|Inspect-Phase|Diagnose-Phase|\.diagnostics/|\.playwright-mcp/|.*\.ps1$)' || true)
 if [ -n "$COMMITTED_PHASE" ]; then
   echo ""
   echo "🚨 PRE-PUSH BLOCKED: Working phase / diagnostic file(s) in outgoing commits:"
