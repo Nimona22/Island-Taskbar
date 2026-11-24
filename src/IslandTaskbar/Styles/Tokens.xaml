@@ -42,15 +42,15 @@
     <x:Double x:Key="Taskbar.Indicator.ActiveWidth">24</x:Double>
     <Thickness x:Key="Taskbar.Item.Margin">4,0,4,0</Thickness>
     <Thickness x:Key="Taskbar.Content.Margin">24,4,24,4</Thickness>
-    <SolidColorBrush x:Key="Music.Text.Primary" Color="#443C37" />
-    <SolidColorBrush x:Key="Music.Text.Secondary" Color="#81766F" />
+    <SolidColorBrush x:Key="Music.Text.Primary" Color="#F5F5F7" />
+    <SolidColorBrush x:Key="Music.Text.Secondary" Color="#A8A8B3" />
     <SolidColorBrush x:Key="Music.Waveform.Fill" Color="#F9773D" />
     <SolidColorBrush x:Key="Music.Ring.Fill" Color="#ED936A" />
-    <SolidColorBrush x:Key="Music.Border" Color="#D9FFFFFF" />
+    <SolidColorBrush x:Key="Music.Border" Color="#38FFFFFF" />
     <SolidColorBrush x:Key="Music.Control.Hover" Color="#24B37D59" />
     <LinearGradientBrush x:Key="Music.Surface" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#E6FFF7F0" Offset="0" />
-        <GradientStop Color="#D9F9E9E1" Offset="1" />
+        <GradientStop Color="#4D202028" Offset="0" />
+        <GradientStop Color="#6614141A" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="Music.Play.Surface" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#FF874C" Offset="0" />
@@ -58,15 +58,15 @@
     </LinearGradientBrush>
 
     <!-- Surface and color tokens (DESIGN_SYSTEM.md §4.1, provisional dark graphite glass) -->
-    <SolidColorBrush x:Key="Surface.IslandFallback" Color="#17171B" />
-    <SolidColorBrush x:Key="Surface.ElevatedFallback" Color="#222229" />
+    <SolidColorBrush x:Key="Surface.IslandFallback" Color="#6614141A" />
+    <SolidColorBrush x:Key="Surface.ElevatedFallback" Color="#4D202028" />
     <SolidColorBrush x:Key="Surface.ControlHover" Color="#303039" />
 
     <SolidColorBrush x:Key="Text.Primary" Color="#F5F5F7" />
     <SolidColorBrush x:Key="Text.Secondary" Color="#C2C2CC" />
     <SolidColorBrush x:Key="Text.Muted" Color="#92929E" />
 
-    <SolidColorBrush x:Key="Border.Subtle" Color="#26FFFFFF" />
+    <SolidColorBrush x:Key="Border.Subtle" Color="#2EFFFFFF" />
     <SolidColorBrush x:Key="Divider.Subtle" Color="#1AFFFFFF" />
 
     <SolidColorBrush x:Key="State.Success" Color="#45B879" />

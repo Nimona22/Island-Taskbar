@@ -1,33 +1,50 @@
 using Microsoft.UI.Composition;
+using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
-using BackdropCompositor = Windows.UI.Composition.Compositor;
-using BackdropBrush = Windows.UI.Composition.CompositionBrush;
 
 namespace IslandTaskbar.Presentation.Backdrops
 {
-    /// <summary>Unblurred host backdrop under the warm tint; no CPU capture or native style changes.</summary>
+    using Windows = global::Windows;
+
     internal sealed class TransparentIslandBackdrop : SystemBackdrop
     {
-        private BackdropCompositor? _compositor;
-        private BackdropBrush? _brush;
+        private DesktopAcrylicController? _acrylicController;
+        private SystemBackdropConfiguration? _configurationSource;
 
         protected override void OnTargetConnected(ICompositionSupportsSystemBackdrop target, XamlRoot root)
         {
-            // Windows composition needs the OS queue as well as WinUI's queue; WinUI owns its shutdown.
-            Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().EnsureSystemDispatcherQueue();
-            _compositor = new BackdropCompositor();
-            _brush = _compositor.CreateColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
-            target.SystemBackdrop = _brush;
+            base.OnTargetConnected(target, root);
+
+            if (!DesktopAcrylicController.IsSupported())
+            {
+                return;
+            }
+
+            _configurationSource = new SystemBackdropConfiguration
+            {
+                IsInputActive = true,
+                Theme = SystemBackdropTheme.Dark
+            };
+
+            _acrylicController = new DesktopAcrylicController
+            {
+                TintColor = Windows.UI.Color.FromArgb(255, 18, 18, 22),
+                TintOpacity = 0.50f,
+                LuminosityOpacity = 0.65f
+            };
+
+            _acrylicController.AddSystemBackdropTarget(target);
+            _acrylicController.SetSystemBackdropConfiguration(_configurationSource);
         }
 
         protected override void OnTargetDisconnected(ICompositionSupportsSystemBackdrop target)
         {
-            target.SystemBackdrop = null;
-            _brush?.Dispose();
-            _brush = null;
-            _compositor?.Dispose();
-            _compositor = null;
+            base.OnTargetDisconnected(target);
+            _acrylicController?.RemoveSystemBackdropTarget(target);
+            _acrylicController?.Dispose();
+            _acrylicController = null;
+            _configurationSource = null;
         }
     }
 }

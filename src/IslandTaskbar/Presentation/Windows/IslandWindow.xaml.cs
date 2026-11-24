@@ -25,6 +25,8 @@ using IslandTaskbar.Presentation.Backdrops;
 
 namespace IslandTaskbar.Presentation.Windows
 {
+    using Windows = global::Windows;
+
     /// <summary>
     /// Phase 3.2 music UI prototype. Native window behavior remains behind the controller/adapters.
     /// </summary>
@@ -82,14 +84,8 @@ namespace IslandTaskbar.Presentation.Windows
                 (double)resources["Space.Major"], 0);
             // A glass-inspired highlight using existing palette tokens, without implying desktop blur.
             var glass = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
-            glass.GradientStops.Add(new GradientStop
-            {
-                Offset = 0, Color = ((SolidColorBrush)resources["Surface.ElevatedFallback"]).Color
-            });
-            glass.GradientStops.Add(new GradientStop
-            {
-                Offset = 1, Color = ((SolidColorBrush)resources["Surface.IslandFallback"]).Color
-            });
+            glass.GradientStops.Add(new GradientStop { Offset = 0, Color = Windows.UI.Color.FromArgb(77, 32, 32, 40) });  // #4D202028
+            glass.GradientStops.Add(new GradientStop { Offset = 1, Color = Windows.UI.Color.FromArgb(102, 20, 20, 26) }); // #6614141A
             IdleSurface.Background = glass;
             _rotationSeconds = (double)resources["Music.Artwork.RotationSeconds"];
             var artwork = new BitmapImage(new Uri("ms-appx:///Assets/PrototypeAlbum.png"))

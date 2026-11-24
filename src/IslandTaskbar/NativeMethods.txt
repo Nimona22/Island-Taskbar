@@ -5,6 +5,7 @@ CreatePolygonRgn
 CreateRoundRectRgn
 DeleteObject
 DwmSetWindowAttribute
+DwmExtendFrameIntoClientArea
 DWM_WINDOW_CORNER_PREFERENCE
 GetWindowRect
 GetWindowLongPtr

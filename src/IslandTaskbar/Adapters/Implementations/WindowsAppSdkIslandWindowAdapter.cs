@@ -54,6 +54,18 @@ namespace IslandTaskbar.Adapters.Implementations
             // It insets the client surface. Remove it and recalculate the client bounds
             // so the measured XAML surface starts at the actual window's top edge.
             HWND hwnd = (HWND)_windowHandle;
+            nint exStyle = PInvoke.GetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
+            PInvoke.SetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, exStyle | (nint)WINDOW_EX_STYLE.WS_EX_LAYERED);
+
+            MARGINS margins = new()
+            {
+                cxLeftWidth = -1,
+                cxRightWidth = -1,
+                cyTopHeight = -1,
+                cyBottomHeight = -1
+            };
+            PInvoke.DwmExtendFrameIntoClientArea(hwnd, &margins);
+
             nint style = PInvoke.GetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_STYLE);
             if (style == 0)
             {
