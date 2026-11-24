@@ -8,7 +8,9 @@ using Windows.Graphics;
 using IslandTaskbar.Adapters.Interfaces;
 using Windows.Win32;
 using Windows.Win32.Foundation;
+using Windows.Win32.Graphics.Dwm;
 using Windows.Win32.Graphics.Gdi;
+using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace IslandTaskbar.Adapters.Implementations
 {
@@ -47,6 +49,40 @@ namespace IslandTaskbar.Adapters.Implementations
             presenter.IsMaximizable = false;
             presenter.IsMinimizable = false;
             presenter.IsAlwaysOnTop = true;
+
+            // The nonresizable presenter retains WS_DLGFRAME even with its border disabled.
+            // It insets the client surface. Remove it and recalculate the client bounds
+            // so the measured XAML surface starts at the actual window's top edge.
+            HWND hwnd = (HWND)_windowHandle;
+            nint style = PInvoke.GetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_STYLE);
+            if (style == 0)
+            {
+                throw NativeFailure("GetWindowLongPtr");
+            }
+
+            if ((style & (nint)WINDOW_STYLE.WS_DLGFRAME) != 0)
+            {
+                if (PInvoke.SetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_STYLE,
+                    style & ~(nint)WINDOW_STYLE.WS_DLGFRAME) == 0)
+                {
+                    throw NativeFailure("SetWindowLongPtr");
+                }
+
+                if (!PInvoke.SetWindowPos(hwnd, default, 0, 0, 0, 0,
+                    SET_WINDOW_POS_FLAGS.SWP_FRAMECHANGED | SET_WINDOW_POS_FLAGS.SWP_NOMOVE
+                    | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER
+                    | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE))
+                {
+                    throw NativeFailure("Recalculate borderless client bounds");
+                }
+            }
+
+            // DWM's automatic rounded frame/backdrop shadow follows the rectangular host,
+            // not SetWindowRgn. Our shared XAML/native outline owns all visible corners.
+            DWM_WINDOW_CORNER_PREFERENCE corners = DWM_WINDOW_CORNER_PREFERENCE.DWMWCP_DONOTROUND;
+            Marshal.ThrowExceptionForHR(PInvoke.DwmSetWindowAttribute(hwnd,
+                DWMWINDOWATTRIBUTE.DWMWA_WINDOW_CORNER_PREFERENCE, &corners,
+                (uint)sizeof(DWM_WINDOW_CORNER_PREFERENCE)).Value);
 
             // Keep the native background and input excluded until WinUI reports a real surface layout.
             HRGN emptyRegion = PInvoke.CreateRectRgn(0, 0, 0, 0);

@@ -17,7 +17,7 @@ namespace IslandTaskbar.Presentation.Backdrops
             // Windows composition needs the OS queue as well as WinUI's queue; WinUI owns its shutdown.
             Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().EnsureSystemDispatcherQueue();
             _compositor = new BackdropCompositor();
-            _brush = _compositor.CreateHostBackdropBrush();
+            _brush = _compositor.CreateColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
             target.SystemBackdrop = _brush;
         }
 

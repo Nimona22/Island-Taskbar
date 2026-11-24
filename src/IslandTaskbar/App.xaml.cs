@@ -36,8 +36,11 @@ namespace IslandTaskbar
         /// <param name="args">Launch activation details provided by the Windows App SDK.</param>
         protected override async void OnLaunched(LaunchActivatedEventArgs args)
         {
+            var dispatcher = DispatcherQueue.GetForCurrentThread();
             _mainWindow = new IslandWindow(new MusicPrototypeViewModel(
-                new MediaPlaybackService(new WindowsMediaSessionService()), DispatcherQueue.GetForCurrentThread()));
+                new MediaPlaybackService(new WindowsMediaSessionService()), dispatcher),
+                new TaskbarViewModel(new WindowManagerService(new Win32WindowSystem()), dispatcher),
+                new IslandViewModel());
             _mainWindow.Closed += OnMainWindowClosed;
             _mainWindow.SurfaceLayoutChanged += OnSurfaceLayoutChanged;
 
@@ -59,7 +62,8 @@ namespace IslandTaskbar
                 _mainWindow = null;
                 throw;
             }
-            try { await _mainWindow.InitializeMediaAsync(CancellationToken.None); }
+            try { await System.Threading.Tasks.Task.WhenAll(_mainWindow.InitializeTaskbarAsync(CancellationToken.None),
+                _mainWindow.InitializeMediaAsync(CancellationToken.None)); }
             catch (OperationCanceledException) when (_mainWindow is null)
             {
                 // Normal close cancels a still-pending GSMTC manager request.

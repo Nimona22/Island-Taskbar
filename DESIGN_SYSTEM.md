@@ -223,7 +223,7 @@ These sizes are provisional and must be checked at 100%, 125%, 150%, and 200% di
 | `Radius.Card` | 12 DIP | Small cards and grouped surfaces |
 | `Radius.Panel` | 16 DIP | Secondary panels and popovers |
 | `Radius.Island` | 20–24 DIP | Expanded island main surface |
-| `Radius.Notch` | 14–18 DIP lower corners | Collapsed top-edge notch |
+| `Radius.Notch` | 12 DIP lower corners | Collapsed top-edge notch |
 
 Rules:
 
@@ -267,7 +267,7 @@ Every interactive component must define the states that apply to it:
 
 ### Phase 3.1 provisional prototype values
 
-The assigned Phase 3.1 visual prototype uses a 112×32 DIP idle notch and a
+The assigned Phase 3.1 visual prototype uses a 96×24 DIP idle notch and a
 320×64 DIP expanded panel, with an 8 DIP gap above the floating panel. Its
 transparent host envelope is 368×88 DIP, converted to physical pixels at the
 existing controller boundary. These dimensions are provisional (OD-019).
@@ -283,7 +283,7 @@ gradient and `Border.Subtle`; desktop backdrop blur is not implemented.
 
 ### Phase 3.2 Music Mode prototype values
 
-The Phase 3.2 assignment preserves the 112×32 DIP idle notch and uses a
+The Phase 3.2 assignment preserves the 96×24 DIP idle notch and uses a
 400×72 DIP music panel within a 448×96 DIP host. The existing 8 DIP top gap,
 corner radii, 220 ms `Motion.Standard`, palette and typography remain.
 Provisional music tokens: `Music.Control.Size` 32 DIP, `Music.Play.Size` 40 DIP,
@@ -301,8 +301,8 @@ uses a static pattern. None of these visuals represent audio reactivity.
 ### Selected warm-glass Music Mode (native Phase 3.2 update)
 
 The user's selected design supersedes the earlier 400×72 DIP music study.
-Music Mode is 280×64 DIPs, attached at y=0, with 12 DIP concave shoulders and
-22 DIP lower corners. The idle 112×32 notch and its original tokens remain.
+Music Mode is 256×64 DIPs, attached at y=0, with 12 DIP concave shoulders and
+22 DIP lower corners. The idle 96×24 notch and its original tokens remain.
 The host is 328×80 DIPs. A shared sampled outline defines paint and native input.
 
 `Music.Surface` uses 90%/85% warm alpha stops over the platform host backdrop
@@ -317,6 +317,27 @@ Artwork rotates over 14 seconds; the ring and waveform use deterministic
 composition animations. Animation controllers pause them in hidden/empty-viewport,
 collapsed, paused and reduced-motion states. The UI timer runs only for geometry
 transitions. No performance guarantee is made without measurement.
+
+### Phase 5.1 Running Applications
+
+The approved Phase 5.1 design adds a 320x80 DIP Taskbar Mode using the selected
+warm-glass Music palette, shared 12 DIP shoulders and 22 DIP lower corners.
+Idle remains 96x24 DIPs and Music Mode remains 256x64 DIPs. The transparent
+host envelope grows to 368x96 DIPs; the measured native region excludes its margins.
+
+Taskbar tokens: `Taskbar.Item.Width` 96, `Taskbar.Item.Extent` 104 (including
+4 DIP left/right margins), `Taskbar.Item.Height` 52, `Taskbar.Title.Width` 88,
+`Taskbar.Icon.Size` 24, `Taskbar.Indicator.ActiveWidth` 24. The content margin is
+24,4,24,4 DIPs. Actual icons and window titles identify each window separately.
+An active window uses an orange bar; other windows use a 4 DIP dot, with state
+also announced in accessible names. Existing caption typography and control
+styles apply. Scroll buttons and arrow/Home/End keys expose overflow without
+shrinking entries. Enter/Space switch the focused window; Escape collapses.
+
+Clicking idle opens Taskbar Mode. The user explicitly chose to keep it open
+until closed, even if media starts or ends. A Music button opens a usable session;
+the existing Music collapse control's context menu offers running applications.
+Existing artwork, waveform, playback controls, and media dismissal remain intact.
 
 ## 9. Motion and Timing
 
