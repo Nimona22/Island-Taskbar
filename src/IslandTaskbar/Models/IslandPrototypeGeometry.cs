@@ -5,16 +5,16 @@ namespace IslandTaskbar.Models
     /// </summary>
     internal static class IslandPrototypeGeometry
     {
-        internal const double NotchWidth = 126;
-        internal const double NotchHeight = 34;
+        internal const double NotchWidth = 88;
+        internal const double NotchHeight = 26;
         internal const double ExpandedWidth = 320;
         internal const double ExpandedHeight = 68;
         internal const double ExpandedTop = 0;
         internal const double ShoulderInset = 12;
-        internal const double TaskbarWidth = 520;
-        internal const double TaskbarHeight = 84;
-        // Phase 5.1 host accommodates Taskbar Mode; native regions still exclude all margins.
-        internal const double HostWidth = 560;
-        internal const double HostHeight = 96;
+        internal const double TaskbarWidth = 420;
+        internal const double TaskbarHeight = 64;
+        // Phase 5.1 host accommodates multi-row Taskbar Mode; native regions still exclude all margins.
+        internal const double HostWidth = 460;
+        internal const double HostHeight = 200;
     }
 }

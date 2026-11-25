@@ -53,3 +53,6 @@ EVENT_OBJECT_CLOAKED
 EVENT_OBJECT_UNCLOAKED
 CoInitializeEx
 CoUninitialize
+GetAsyncKeyState
+GetCursorPos
+ScreenToClient

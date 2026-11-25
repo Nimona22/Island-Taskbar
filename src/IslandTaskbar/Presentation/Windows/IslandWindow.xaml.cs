@@ -22,6 +22,9 @@ using Windows.System;
 using IslandTaskbar.Models;
 using IslandTaskbar.ViewModels;
 using IslandTaskbar.Presentation.Backdrops;
+using Windows.Win32;
+using Windows.Win32.Foundation;
+using WinRT.Interop;
 
 namespace IslandTaskbar.Presentation.Windows
 {
@@ -59,8 +62,19 @@ namespace IslandTaskbar.Presentation.Windows
         private IslandMode _expandedMode = IslandMode.Music;
         private double _expandedWidth = IslandPrototypeGeometry.ExpandedWidth;
         private double _expandedHeight = IslandPrototypeGeometry.ExpandedHeight;
-        private ScrollViewer? _taskbarScroll;
-        private bool _taskbarLayoutDirty = true;
+        private readonly DispatcherTimer _autoDismissTimer;
+        private readonly DispatcherTimer _outsideClickTimer;
+        private readonly PointerEventHandler _surfacePressedHandler;
+        private readonly PointerEventHandler _surfaceReleasedHandler;
+        private readonly PointerEventHandler _surfaceCaptureLostHandler;
+        private readonly PointerEventHandler _surfaceWheelHandler;
+        private nint _windowHandle;
+        private bool _isPointerInside;
+        private bool _isPointerPressedInside;
+        private bool _hasKeyboardFocusInside;
+        private bool _isContextMenuOpen;
+        private bool _wasMouseDown;
+        private bool _openedByKeyboard;
 
         internal event EventHandler<IslandSurfaceLayoutEventArgs>? SurfaceLayoutChanged;
         internal MusicPrototypeViewModel MusicState { get; }
@@ -84,8 +98,8 @@ namespace IslandTaskbar.Presentation.Windows
                 (double)resources["Space.Major"], 0);
             // A glass-inspired highlight using existing palette tokens, without implying desktop blur.
             var glass = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
-            glass.GradientStops.Add(new GradientStop { Offset = 0, Color = Windows.UI.Color.FromArgb(77, 32, 32, 40) });  // #4D202028
-            glass.GradientStops.Add(new GradientStop { Offset = 1, Color = Windows.UI.Color.FromArgb(102, 20, 20, 26) }); // #6614141A
+            glass.GradientStops.Add(new GradientStop { Offset = 0, Color = Windows.UI.Color.FromArgb(20, 255, 255, 255) });
+            glass.GradientStops.Add(new GradientStop { Offset = 1, Color = Windows.UI.Color.FromArgb(5, 0, 0, 0) });
             IdleSurface.Background = glass;
             _rotationSeconds = (double)resources["Music.Artwork.RotationSeconds"];
             var artwork = new BitmapImage(new Uri("ms-appx:///Assets/PrototypeAlbum.png"))
@@ -121,8 +135,26 @@ namespace IslandTaskbar.Presentation.Windows
                 _waveBars.Add(waveBar);
                 IllustrativeWaveform.Children.Add(waveBar);
             }
+            _windowHandle = WindowNative.GetWindowHandle(this);
             _transitionTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.0 / 60) };
             _transitionTimer.Tick += OnTransitionTick;
+            _autoDismissTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+            _autoDismissTimer.Tick += OnAutoDismissTick;
+            _outsideClickTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(45) };
+            _outsideClickTimer.Tick += OnOutsideClickTick;
+            _surfacePressedHandler = new PointerEventHandler(OnSurfacePointerPressed);
+            _surfaceReleasedHandler = new PointerEventHandler(OnSurfacePointerReleased);
+            _surfaceCaptureLostHandler = new PointerEventHandler(OnSurfacePointerCaptureLost);
+            _surfaceWheelHandler = new PointerEventHandler(OnSurfacePointerWheelChanged);
+            IslandSurface.PointerEntered += OnSurfacePointerEntered;
+            IslandSurface.PointerExited += OnSurfacePointerExited;
+            IslandSurface.AddHandler(UIElement.PointerPressedEvent, _surfacePressedHandler, true);
+            IslandSurface.AddHandler(UIElement.PointerReleasedEvent, _surfaceReleasedHandler, true);
+            IslandSurface.AddHandler(UIElement.PointerCaptureLostEvent, _surfaceCaptureLostHandler, true);
+            IslandSurface.AddHandler(UIElement.PointerWheelChangedEvent, _surfaceWheelHandler, true);
+            IslandSurface.GotFocus += OnSurfaceGotFocus;
+            IslandSurface.LostFocus += OnSurfaceLostFocus;
+            Activated += OnWindowActivated;
             IslandSurface.EffectiveViewportChanged += OnEffectiveViewportChanged;
             WindowRoot.SizeChanged += OnRootSizeChanged;
             _uiSettings.AnimationsEnabledChanged += OnAnimationsEnabledChanged;
@@ -131,6 +163,7 @@ namespace IslandTaskbar.Presentation.Windows
             MusicState.MediaStateChanged += OnMediaStateChanged;
             IslandState.PropertyChanged += OnModeChanged;
             TaskbarState.Windows.CollectionChanged += OnRunningWindowsChanged;
+            TaskbarState.PropertyChanged += OnTaskbarStateChanged;
             ApplyProgress(0);
         }
 
@@ -146,12 +179,27 @@ namespace IslandTaskbar.Presentation.Windows
 
         private void OnIslandToggleClick(object sender, RoutedEventArgs e)
         {
+            _openedByKeyboard = IslandToggle.FocusState == FocusState.Keyboard;
             IslandState.OpenTaskbar();
         }
 
         private void OnCollapseClick(object sender, RoutedEventArgs e) => IslandState.Collapse();
-        private void OnOpenTaskbarClick(object sender, RoutedEventArgs e) => IslandState.OpenTaskbar();
+        private void OnOpenTaskbarClick(object sender, RoutedEventArgs e)
+        {
+            _openedByKeyboard = false;
+            IslandState.OpenTaskbar();
+        }
         private void OnOpenMusicClick(object sender, RoutedEventArgs e) => IslandState.OpenMusic(MusicState.HasSession);
+        private void OnContextFlyoutOpening(object? sender, object e)
+        {
+            _isContextMenuOpen = true;
+            _autoDismissTimer.Stop();
+        }
+        private void OnContextFlyoutClosed(object? sender, object e)
+        {
+            _isContextMenuOpen = false;
+            EvaluateAutoDismiss();
+        }
 
         private void OnModeChanged(object? sender, PropertyChangedEventArgs e)
         {
@@ -160,12 +208,30 @@ namespace IslandTaskbar.Presentation.Windows
             {
                 _expandedMode = IslandState.Mode;
                 _expandedWidth = _expandedMode == IslandMode.Taskbar ? IslandPrototypeGeometry.TaskbarWidth : IslandPrototypeGeometry.ExpandedWidth;
-                _expandedHeight = _expandedMode == IslandMode.Taskbar ? IslandPrototypeGeometry.TaskbarHeight : IslandPrototypeGeometry.ExpandedHeight;
+                _expandedHeight = _expandedMode == IslandMode.Taskbar ? CalculateTaskbarHeight() : IslandPrototypeGeometry.ExpandedHeight;
+            }
+            if (IslandState.Mode == IslandMode.Taskbar)
+            {
+                _wasMouseDown = false;
+                _outsideClickTimer.Start();
+            }
+            else
+            {
+                _autoDismissTimer.Stop();
+                _outsideClickTimer.Stop();
+                _isPointerPressedInside = false;
+                _hasKeyboardFocusInside = false;
+                _openedByKeyboard = false;
+                _wasMouseDown = false;
             }
             SetExpanded(IslandState.Mode != IslandMode.Idle);
             ApplyProgress(_progress);
-            if (IslandState.Mode != IslandMode.Idle && !_isTransitioning) FocusExpandedContent();
+            if (IslandState.Mode != IslandMode.Idle && !_isTransitioning)
+            {
+                if (_expandedMode != IslandMode.Taskbar || _openedByKeyboard) FocusExpandedContent();
+            }
             UpdateVisualTimer();
+            EvaluateAutoDismiss();
         }
 
         private void OnPrototypeKeyDown(object sender, KeyRoutedEventArgs e)
@@ -195,7 +261,7 @@ namespace IslandTaskbar.Presentation.Windows
             {
                 _isTransitioning = false;
                 ApplyProgress(_isExpanded ? 1 : 0);
-                if (_isExpanded && IslandToggle.FocusState != FocusState.Unfocused)
+                if (_isExpanded && (_expandedMode != IslandMode.Taskbar || _openedByKeyboard) && IslandToggle.FocusState != FocusState.Unfocused)
                 {
                     FocusExpandedContent();
                 }
@@ -224,11 +290,13 @@ namespace IslandTaskbar.Presentation.Windows
                 {
                     _isTransitioning = false;
                     _transitionClock.Stop();
-                    if (_isExpanded && IslandToggle.FocusState != FocusState.Unfocused)
+                    if (_isExpanded && (_expandedMode != IslandMode.Taskbar || _openedByKeyboard))
                     {
-                        FocusExpandedContent();
+                        if (IslandToggle.FocusState != FocusState.Unfocused || _expandedMode == IslandMode.Taskbar)
+                        {
+                            FocusExpandedContent();
+                        }
                     }
-                    else if (_isExpanded && _expandedMode == IslandMode.Taskbar) FocusExpandedContent();
                 }
             }
 
@@ -339,7 +407,6 @@ namespace IslandTaskbar.Presentation.Windows
         private void ApplyProgress(double progress)
         {
             _surfaceLayoutDirty = true;
-            _taskbarLayoutDirty = true;
             _progress = progress;
             IslandSurface.Width = Lerp(IslandPrototypeGeometry.NotchWidth, _expandedWidth, progress);
             IslandSurface.Height = Lerp(IslandPrototypeGeometry.NotchHeight, _expandedHeight, progress);
@@ -347,19 +414,32 @@ namespace IslandTaskbar.Presentation.Windows
             IdleSurface.Opacity = 1 - progress;
             MusicSurface.Opacity = progress;
             MusicSurface.Visibility = progress > 0 ? Visibility.Visible : Visibility.Collapsed;
+            MusicSurfaceRim.Opacity = progress;
+            MusicSurfaceRim.Visibility = MusicSurface.Visibility;
             IslandToggle.CornerRadius = (CornerRadius)Application.Current.Resources["Radius.Notch"];
             _surfaceOutline = progress > 0 ? IslandSurfaceOutline.Create(IslandSurface.Width, IslandSurface.Height,
                 IslandPrototypeGeometry.ShoulderInset * progress, Lerp(_notchRadius, _expandedRadius, progress)) : null;
             if (_surfaceOutline is not null)
             {
-                var figure = new PathFigure { StartPoint = new Point(_surfaceOutline[0].X, _surfaceOutline[0].Y), IsClosed = true };
+                var fillFigure = new PathFigure { StartPoint = new Point(_surfaceOutline[0].X, _surfaceOutline[0].Y), IsClosed = true };
                 for (int index = 1; index < _surfaceOutline.Count; index++)
                 {
-                    figure.Segments.Add(new LineSegment { Point = new Point(_surfaceOutline[index].X, _surfaceOutline[index].Y) });
+                    fillFigure.Segments.Add(new LineSegment { Point = new Point(_surfaceOutline[index].X, _surfaceOutline[index].Y) });
                 }
-                var geometry = new PathGeometry { FillRule = FillRule.Nonzero };
-                geometry.Figures.Add(figure);
-                MusicSurface.Data = geometry;
+                var fillGeometry = new PathGeometry { FillRule = FillRule.Nonzero };
+                fillGeometry.Figures.Add(fillFigure);
+                MusicSurface.Data = fillGeometry;
+
+                // Trace shoulders, sides, and bottom while omitting the top y=0 edge so the notch stays flush.
+                var rimFigure = new PathFigure { StartPoint = new Point(_surfaceOutline[1].X, _surfaceOutline[1].Y), IsClosed = false };
+                for (int index = 2; index < _surfaceOutline.Count; index++)
+                {
+                    rimFigure.Segments.Add(new LineSegment { Point = new Point(_surfaceOutline[index].X, _surfaceOutline[index].Y) });
+                }
+                rimFigure.Segments.Add(new LineSegment { Point = new Point(_surfaceOutline[0].X, _surfaceOutline[0].Y) });
+                var rimGeometry = new PathGeometry();
+                rimGeometry.Figures.Add(rimFigure);
+                MusicSurfaceRim.Data = rimGeometry;
             }
             // Fade the whole idle button, including any pointer-over wash retained after the click.
             IslandToggle.Opacity = 1 - Math.Min(1, progress * 3);
@@ -391,14 +471,9 @@ namespace IslandTaskbar.Presentation.Windows
         private void OnSurfaceLayoutUpdated(object? sender, object e)
         {
             ReportSurfaceLayout();
-            if (_taskbarLayoutDirty && IslandState.Mode == IslandMode.Taskbar && TaskbarContent.Visibility == Visibility.Visible)
-            {
-                _taskbarLayoutDirty = false;
-                OnTaskbarLoaded(this, new RoutedEventArgs());
-            }
         }
-        private void OnRootSizeChanged(object sender, SizeChangedEventArgs e) { _surfaceLayoutDirty = true; _taskbarLayoutDirty = true; }
-        private void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs e) { _surfaceLayoutDirty = true; _taskbarLayoutDirty = true; }
+        private void OnRootSizeChanged(object sender, SizeChangedEventArgs e) { _surfaceLayoutDirty = true; }
+        private void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs e) { _surfaceLayoutDirty = true; }
 
         private void ReportSurfaceLayout()
         {
@@ -457,8 +532,12 @@ namespace IslandTaskbar.Presentation.Windows
             MusicState.Dispose();
             IslandState.PropertyChanged -= OnModeChanged;
             TaskbarState.Windows.CollectionChanged -= OnRunningWindowsChanged;
+            TaskbarState.PropertyChanged -= OnTaskbarStateChanged;
             TaskbarState.Dispose();
-            if (_taskbarScroll is not null) _taskbarScroll.ViewChanged -= OnTaskbarViewChanged;
+            _autoDismissTimer.Stop();
+            _autoDismissTimer.Tick -= OnAutoDismissTick;
+            _outsideClickTimer.Stop();
+            _outsideClickTimer.Tick -= OnOutsideClickTick;
             _transitionTimer.Stop();
             _transitionTimer.Tick -= OnTransitionTick;
             _transitionClock.Stop();
@@ -468,6 +547,15 @@ namespace IslandTaskbar.Presentation.Windows
             _animationResources.Clear();
             _uiSettings.AnimationsEnabledChanged -= OnAnimationsEnabledChanged;
             VisibilityChanged -= OnPrototypeVisibilityChanged;
+            Activated -= OnWindowActivated;
+            IslandSurface.PointerEntered -= OnSurfacePointerEntered;
+            IslandSurface.PointerExited -= OnSurfacePointerExited;
+            IslandSurface.RemoveHandler(UIElement.PointerPressedEvent, _surfacePressedHandler);
+            IslandSurface.RemoveHandler(UIElement.PointerReleasedEvent, _surfaceReleasedHandler);
+            IslandSurface.RemoveHandler(UIElement.PointerCaptureLostEvent, _surfaceCaptureLostHandler);
+            IslandSurface.RemoveHandler(UIElement.PointerWheelChangedEvent, _surfaceWheelHandler);
+            IslandSurface.GotFocus -= OnSurfaceGotFocus;
+            IslandSurface.LostFocus -= OnSurfaceLostFocus;
             IslandSurface.EffectiveViewportChanged -= OnEffectiveViewportChanged;
             WindowRoot.SizeChanged -= OnRootSizeChanged;
             if (_observedXamlRoot is not null) _observedXamlRoot.Changed -= OnXamlRootChanged;
@@ -477,57 +565,196 @@ namespace IslandTaskbar.Presentation.Windows
         private async void OnRunningWindowClick(object sender, RoutedEventArgs e)
         {
             if (sender is FrameworkElement { DataContext: RunningWindowItemViewModel entry })
-                await TaskbarState.ActivateAsync(entry, CancellationToken.None);
-        }
-
-        private void OnTaskbarLoaded(object sender, RoutedEventArgs e)
-        {
-            if (_taskbarScroll is null)
             {
-                RunningWindowsListView.ApplyTemplate();
-                _taskbarScroll = FindChild<ScrollViewer>(RunningWindowsListView);
-                if (_taskbarScroll is not null) _taskbarScroll.ViewChanged += OnTaskbarViewChanged;
+                bool switched = await TaskbarState.ActivateAsync(entry, CancellationToken.None);
+                if (switched && !_isClosed && IslandState.Mode == IslandMode.Taskbar)
+                {
+                    IslandState.Collapse();
+                }
             }
-            UpdateScrollButtons();
         }
 
         private void OnRunningWindowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            _taskbarLayoutDirty = true;
-            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+            UpdateDynamicTaskbarHeight();
+        }
+
+        private void OnTaskbarStateChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(TaskbarViewModel.StatusVisibility))
             {
-                if (_isClosed) return;
-                UpdateScrollButtons();
-            });
+                UpdateDynamicTaskbarHeight();
+            }
         }
 
-        private void OnTaskbarViewChanged(object? sender, ScrollViewerViewChangedEventArgs e) => UpdateScrollButtons();
-        private void UpdateScrollButtons()
+        private double CalculateTaskbarHeight()
         {
-            ScrollApplicationsLeft.IsEnabled = _taskbarScroll?.HorizontalOffset > 0.5;
-            ScrollApplicationsRight.IsEnabled = _taskbarScroll is not null
-                && _taskbarScroll.HorizontalOffset + 0.5 < _taskbarScroll.ScrollableWidth;
+            int rows = Math.Clamp((int)Math.Ceiling(Math.Max(1, TaskbarState.Windows.Count) / 4.0), 1, 3);
+            double baseHeight = 14 + rows * 50;
+            double statusExtra = TaskbarState.StatusVisibility == Visibility.Visible ? 18 : 0;
+            return baseHeight + statusExtra;
         }
 
-        private void OnScrollApplicationsLeft(object sender, RoutedEventArgs e) => ScrollApplications(-1);
-        private void OnScrollApplicationsRight(object sender, RoutedEventArgs e) => ScrollApplications(1);
-        private void ScrollApplications(int direction)
+        private void UpdateDynamicTaskbarHeight()
         {
-            if (_taskbarScroll is null) OnTaskbarLoaded(this, new RoutedEventArgs());
-            if (_taskbarScroll is null) return;
-            double step = (double)Application.Current.Resources["Taskbar.Item.Extent"];
-            _taskbarScroll.ChangeView(Math.Clamp(_taskbarScroll.HorizontalOffset + direction * step, 0, _taskbarScroll.ScrollableWidth), null, null, true);
+            if (_isClosed || IslandState.Mode != IslandMode.Taskbar) return;
+            double nextHeight = CalculateTaskbarHeight();
+            if (Math.Abs(nextHeight - _expandedHeight) < 0.5) return;
+            _expandedHeight = nextHeight;
+            if (!_isTransitioning)
+            {
+                ApplyProgress(_progress);
+            }
+        }
+
+        private void OnSurfacePointerEntered(object sender, PointerRoutedEventArgs e)
+        {
+            _isPointerInside = true;
+            _autoDismissTimer.Stop();
+        }
+
+        private void OnSurfacePointerExited(object sender, PointerRoutedEventArgs e)
+        {
+            _isPointerInside = false;
+            EvaluateAutoDismiss();
+        }
+
+        private void OnSurfacePointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            _isPointerPressedInside = true;
+            _autoDismissTimer.Stop();
+        }
+
+        private void OnSurfacePointerReleased(object sender, PointerRoutedEventArgs e)
+        {
+            _isPointerPressedInside = false;
+            EvaluateAutoDismiss();
+        }
+
+        private void OnSurfacePointerCaptureLost(object sender, PointerRoutedEventArgs e)
+        {
+            _isPointerPressedInside = false;
+            EvaluateAutoDismiss();
+        }
+
+        private void OnSurfacePointerWheelChanged(object sender, PointerRoutedEventArgs e)
+        {
+            if (_isClosed || IslandState.Mode != IslandMode.Taskbar) return;
+            _autoDismissTimer.Stop();
+            EvaluateAutoDismiss();
+        }
+
+        private void OnSurfaceGotFocus(object sender, RoutedEventArgs e)
+        {
+            if (e.OriginalSource is Control control && control.FocusState == FocusState.Keyboard)
+            {
+                _hasKeyboardFocusInside = true;
+                _autoDismissTimer.Stop();
+            }
+        }
+
+        private void OnSurfaceLostFocus(object sender, RoutedEventArgs e)
+        {
+            if (_isClosed || WindowRoot.XamlRoot is null)
+            {
+                _hasKeyboardFocusInside = false;
+                return;
+            }
+            if (FocusManager.GetFocusedElement(WindowRoot.XamlRoot) is DependencyObject focused && IsDescendantOf(focused, IslandSurface))
+            {
+                return;
+            }
+            _hasKeyboardFocusInside = false;
+            EvaluateAutoDismiss();
+        }
+
+        private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
+        {
+            if (_isClosed || args.WindowActivationState != WindowActivationState.Deactivated) return;
+            if (_isExpanded && IslandState.Mode == IslandMode.Taskbar && !_isPointerPressedInside && !_isContextMenuOpen)
+            {
+                IslandState.Collapse();
+            }
+        }
+
+        private void OnAutoDismissTick(object? sender, object e)
+        {
+            _autoDismissTimer.Stop();
+            if (_isClosed || IslandState.Mode != IslandMode.Taskbar) return;
+            if (_isPointerInside || _isPointerPressedInside || _hasKeyboardFocusInside || _isContextMenuOpen) return;
+            IslandState.Collapse();
+        }
+
+        private void OnOutsideClickTick(object? sender, object e)
+        {
+            if (_isClosed || IslandState.Mode != IslandMode.Taskbar)
+            {
+                _outsideClickTimer.Stop();
+                return;
+            }
+            bool isDown = (PInvoke.GetAsyncKeyState(0x01) & 0x8000) != 0
+                || (PInvoke.GetAsyncKeyState(0x02) & 0x8000) != 0
+                || (PInvoke.GetAsyncKeyState(0x04) & 0x8000) != 0;
+            bool newPress = isDown && !_wasMouseDown;
+            _wasMouseDown = isDown;
+            if (!newPress || _isPointerInside || _isPointerPressedInside || _isContextMenuOpen) return;
+            if (_windowHandle != 0 && _lastLayout is not null
+                && PInvoke.GetCursorPos(out var pt)
+                && PInvoke.ScreenToClient((HWND)_windowHandle, ref pt))
+            {
+                double x = pt.X / _lastLayout.RasterizationScale;
+                double y = pt.Y / _lastLayout.RasterizationScale;
+                if (x < _lastLayout.Left || x > _lastLayout.Left + _lastLayout.Width
+                    || y < _lastLayout.Top || y > _lastLayout.Top + _lastLayout.Height)
+                {
+                    IslandState.Collapse();
+                }
+            }
+        }
+
+        private void EvaluateAutoDismiss()
+        {
+            if (_isClosed || IslandState.Mode != IslandMode.Taskbar)
+            {
+                _autoDismissTimer.Stop();
+                return;
+            }
+            if (_isPointerInside || _isPointerPressedInside || _hasKeyboardFocusInside || _isContextMenuOpen)
+            {
+                _autoDismissTimer.Stop();
+                return;
+            }
+            // Restart a fresh 1.5 s countdown when pointer/focus leaves so brief re-entry resets it.
+            _autoDismissTimer.Stop();
+            _autoDismissTimer.Start();
+        }
+
+        private static bool IsDescendantOf(DependencyObject child, DependencyObject parent)
+        {
+            DependencyObject? current = child;
+            while (current is not null)
+            {
+                if (ReferenceEquals(current, parent)) return true;
+                current = VisualTreeHelper.GetParent(current);
+            }
+            return false;
         }
 
         private void OnTaskbarKeyDown(object sender, KeyRoutedEventArgs e)
         {
-            if (e.Key is not (VirtualKey.Left or VirtualKey.Right or VirtualKey.Home or VirtualKey.End)) return;
+            if (e.Key is not (VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down or VirtualKey.Home or VirtualKey.End)) return;
             if (e.OriginalSource is not FrameworkElement { DataContext: RunningWindowItemViewModel entry }) return;
+            _hasKeyboardFocusInside = true;
+            _autoDismissTimer.Stop();
             int index = TaskbarState.Windows.IndexOf(entry);
             index = e.Key switch
             {
-                VirtualKey.Left => index - 1, VirtualKey.Right => index + 1,
-                VirtualKey.Home => 0, _ => TaskbarState.Windows.Count - 1
+                VirtualKey.Left => index - 1,
+                VirtualKey.Right => index + 1,
+                VirtualKey.Up => index - 4,
+                VirtualKey.Down => index + 4,
+                VirtualKey.Home => 0,
+                _ => TaskbarState.Windows.Count - 1
             };
             FocusRunningWindow(index);
             e.Handled = true;
@@ -543,12 +770,19 @@ namespace IslandTaskbar.Presentation.Windows
         {
             if (TaskbarState.Windows.Count == 0) { TaskbarCollapseButton.Focus(FocusState.Programmatic); return; }
             var entry = TaskbarState.Windows[Math.Clamp(index, 0, TaskbarState.Windows.Count - 1)];
-            RunningWindowsListView.ScrollIntoView(entry, ScrollIntoViewAlignment.Leading);
+            RunningWindowsListView.ScrollIntoView(entry, ScrollIntoViewAlignment.Default);
             DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
             {
                 if (_isClosed || IslandState.Mode != IslandMode.Taskbar) return;
                 if (RunningWindowsListView.ContainerFromItem(entry) is DependencyObject container)
-                    FindChild<Button>(container)?.Focus(FocusState.Programmatic);
+                {
+                    var button = FindChild<Button>(container);
+                    if (button is not null)
+                    {
+                        _hasKeyboardFocusInside = _openedByKeyboard || _hasKeyboardFocusInside;
+                        button.Focus(_openedByKeyboard ? FocusState.Keyboard : FocusState.Programmatic);
+                    }
+                }
             });
         }
 

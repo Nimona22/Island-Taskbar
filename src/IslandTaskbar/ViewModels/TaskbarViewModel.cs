@@ -67,9 +67,9 @@ namespace IslandTaskbar.ViewModels
             NotifyState();
         }
 
-        public async Task ActivateAsync(RunningWindowItemViewModel entry, CancellationToken cancellationToken)
+        public async Task<bool> ActivateAsync(RunningWindowItemViewModel entry, CancellationToken cancellationToken)
         {
-            if (_disposed || _busy) return;
+            if (_disposed || _busy) return false;
             _busy = true;
             _commandStatus = null;
             NotifyState();
@@ -77,7 +77,7 @@ namespace IslandTaskbar.ViewModels
             {
                 using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
                 var result = await _windows.ActivateAsync(entry.Window, linked.Token);
-                if (_disposed) return;
+                if (_disposed) return false;
                 _commandStatus = result switch
                 {
                     WindowActivationResult.Unavailable => "That window is no longer available.",
@@ -85,8 +85,9 @@ namespace IslandTaskbar.ViewModels
                     WindowActivationResult.Failed => "The window could not be restored.",
                     _ => null
                 };
+                return result == WindowActivationResult.Success;
             }
-            catch (OperationCanceledException) when (_disposed || cancellationToken.IsCancellationRequested) { }
+            catch (OperationCanceledException) when (_disposed || cancellationToken.IsCancellationRequested) { return false; }
             finally { _busy = false; if (!_disposed) NotifyState(); }
         }
 

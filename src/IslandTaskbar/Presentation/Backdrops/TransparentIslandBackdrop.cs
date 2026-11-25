@@ -30,8 +30,8 @@ namespace IslandTaskbar.Presentation.Backdrops
             _acrylicController = new DesktopAcrylicController
             {
                 TintColor = Windows.UI.Color.FromArgb(255, 18, 18, 22),
-                TintOpacity = 0.50f,
-                LuminosityOpacity = 0.65f
+                TintOpacity = 0.12f,
+                LuminosityOpacity = 0.15f
             };
 
             _acrylicController.AddSystemBackdropTarget(target);

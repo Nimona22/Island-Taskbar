@@ -60,7 +60,7 @@
         <Grid x:Name="IslandSurface" HorizontalAlignment="Center" VerticalAlignment="Top"
               Loaded="OnSurfaceLoaded">
             <Border x:Name="IdleSurface" Background="{StaticResource Surface.IslandFallback}"
-                    BorderBrush="{StaticResource Border.Subtle}" BorderThickness="1"
+                    BorderBrush="{StaticResource Border.Subtle}" BorderThickness="1,0,1,1"
                     CornerRadius="{StaticResource Radius.Notch}">
                 <Grid>
             <Button x:Name="IslandToggle" Style="{StaticResource PrototypeIconButton}"
@@ -69,14 +69,15 @@
                     AutomationProperties.Name="Open running applications"
                     ToolTipService.ToolTip="Expand IslandTaskbar" Click="OnIslandToggleClick">
                 <FontIcon x:Name="NotchIcon" FontFamily="Segoe Fluent Icons" Glyph="&#xECA5;"
-                          FontSize="{StaticResource Type.Display.Size}"
+                          FontSize="{StaticResource Taskbar.NotchIcon.Size}"
                           HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
             </Button>
                 </Grid>
             </Border>
             <Path x:Name="MusicSurface" Fill="{StaticResource Music.Surface}"
-                  Stroke="{StaticResource Music.Border}" StrokeThickness="1"
-                  IsHitTestVisible="False" Visibility="Collapsed" />
+                  IsHitTestVisible="True" Visibility="Collapsed" />
+            <Path x:Name="MusicSurfaceRim" Stroke="{StaticResource Music.Border}"
+                  StrokeThickness="1" IsHitTestVisible="False" Visibility="Collapsed" />
 
             <Grid x:Name="ExpandedContent" ColumnSpacing="{StaticResource Space.Compact}"
                   VerticalAlignment="Center" Opacity="0" Visibility="Collapsed">
@@ -150,7 +151,7 @@
                         AutomationProperties.Name="Return music to idle notch"
                         ToolTipService.ToolTip="Return to idle" Click="OnCollapseClick">
                     <Button.ContextFlyout>
-                        <MenuFlyout>
+                        <MenuFlyout Opening="OnContextFlyoutOpening" Closed="OnContextFlyoutClosed">
                             <MenuFlyoutItem Text="Running applications" Click="OnOpenTaskbarClick" />
                         </MenuFlyout>
                     </Button.ContextFlyout>
@@ -159,32 +160,29 @@
                 </Button>
             </Grid>
             <Grid x:Name="TaskbarContent" Visibility="Collapsed" Opacity="0"
-                  Margin="{StaticResource Taskbar.Content.Margin}" VerticalAlignment="Center"
+                  Margin="{StaticResource Taskbar.Content.Margin}" VerticalAlignment="Top"
                   ColumnSpacing="{StaticResource Space.Micro}" KeyDown="OnTaskbarKeyDown">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                <Button x:Name="ScrollApplicationsLeft" Style="{StaticResource PrototypeMusicIconButton}"
-                        Width="{StaticResource Music.Collapse.Size}" Height="{StaticResource Music.Control.Height}"
-                        VerticalAlignment="Center" Foreground="{StaticResource Music.Text.Secondary}"
-                        AutomationProperties.AutomationId="TaskbarScrollLeft" AutomationProperties.Name="Scroll applications left"
-                        ToolTipService.ToolTip="Earlier windows" Click="OnScrollApplicationsLeft">
-                    <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE76B;" FontSize="{StaticResource Music.Control.IconSize}" />
-                </Button>
-                <ListView x:Name="RunningWindowsListView" Grid.Column="1" Background="Transparent"
-                          Height="{StaticResource Taskbar.Item.Height}" SelectionMode="None" IsTabStop="False"
-                          ItemsSource="{x:Bind TaskbarState.Windows}" Loaded="OnTaskbarLoaded"
+                <ListView x:Name="RunningWindowsListView" Grid.Column="0" Background="Transparent"
+                          MaxHeight="{StaticResource Taskbar.List.MaxHeight}" SelectionMode="None" IsTabStop="False"
+                          ItemsSource="{x:Bind TaskbarState.Windows}"
                           AutomationProperties.AutomationId="RunningWindowsListView" AutomationProperties.Name="Running application windows"
-                          ScrollViewer.HorizontalScrollMode="Enabled" ScrollViewer.HorizontalScrollBarVisibility="Hidden"
-                          ScrollViewer.VerticalScrollMode="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
-                    <ListView.ItemsPanel><ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ListView.ItemsPanel>
+                          ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          ScrollViewer.VerticalScrollMode="Enabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="4" HorizontalAlignment="Left" />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
                             <Setter Property="IsTabStop" Value="False" /><Setter Property="Padding" Value="0" />
                             <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
                             <Setter Property="Width" Value="{StaticResource Taskbar.Item.Extent}" />
+                            <Setter Property="Height" Value="50" />
                             <Setter Property="Template">
                                 <Setter.Value><ControlTemplate TargetType="ListViewItem">
                                     <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" />
@@ -200,43 +198,38 @@
                                     AutomationProperties.Name="{x:Bind AccessibleName, Mode=OneWay}"
                                     AutomationProperties.AutomationId="{x:Bind AutomationId}"
                                     ToolTipService.ToolTip="{x:Bind AccessibleName, Mode=OneWay}">
-                                <StackPanel Spacing="{StaticResource Space.Micro}" Width="{StaticResource Taskbar.Title.Width}">
+                                <StackPanel Spacing="2" VerticalAlignment="Center" Width="{StaticResource Taskbar.Title.Width}">
                                     <Grid Width="{StaticResource Taskbar.Icon.Size}" Height="{StaticResource Taskbar.Icon.Size}" HorizontalAlignment="Center">
                                         <Image Source="{x:Bind Icon, Mode=OneWay}" Visibility="{x:Bind IconVisibility, Mode=OneWay}" />
                                         <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE737;"
                                                   Foreground="{StaticResource Music.Text.Secondary}" FontSize="{StaticResource Taskbar.Icon.Size}"
                                                   Visibility="{x:Bind FallbackVisibility, Mode=OneWay}" />
                                     </Grid>
-                                    <TextBlock Text="{x:Bind Title, Mode=OneWay}" TextTrimming="CharacterEllipsis"
+                                    <TextBlock Text="{x:Bind Title, Mode=OneWay}" MaxLines="1" TextTrimming="CharacterEllipsis"
                                                Style="{StaticResource Type.Caption}" Foreground="{StaticResource Music.Text.Primary}" TextAlignment="Center" />
-                                    <Border Width="{x:Bind IndicatorWidth, Mode=OneWay}" Height="{StaticResource Space.Micro}"
+                                    <Border Width="{x:Bind IndicatorWidth, Mode=OneWay}" Height="3"
                                             Background="{x:Bind IndicatorBrush, Mode=OneWay}" CornerRadius="{StaticResource Radius.Control}" HorizontalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
-                <Button x:Name="ScrollApplicationsRight" Grid.Column="2" Style="{StaticResource PrototypeMusicIconButton}"
-                        Width="{StaticResource Music.Collapse.Size}" Height="{StaticResource Music.Control.Height}"
-                        VerticalAlignment="Center" Foreground="{StaticResource Music.Text.Secondary}"
-                        AutomationProperties.AutomationId="TaskbarScrollRight" AutomationProperties.Name="Scroll applications right"
-                        ToolTipService.ToolTip="More windows" Click="OnScrollApplicationsRight">
-                    <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE76C;" FontSize="{StaticResource Music.Control.IconSize}" />
-                </Button>
-                <Button Grid.Column="3" Style="{StaticResource PrototypeMusicIconButton}" Width="{StaticResource Music.Collapse.Size}"
-                        Height="{StaticResource Music.Control.Height}" VerticalAlignment="Center"
-                        IsEnabled="{x:Bind MusicState.HasSession, Mode=OneWay}" Foreground="{StaticResource Music.Text.Primary}"
-                        AutomationProperties.AutomationId="TaskbarOpenMusic" AutomationProperties.Name="Open Music Mode"
-                        ToolTipService.ToolTip="Music Mode" Click="OnOpenMusicClick">
-                    <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8D6;" FontSize="{StaticResource Music.Control.IconSize}" />
-                </Button>
-                <Button x:Name="TaskbarCollapseButton" Grid.Column="4" Style="{StaticResource PrototypeMusicIconButton}"
-                        Width="{StaticResource Music.Collapse.Size}" Height="{StaticResource Music.Control.Height}" VerticalAlignment="Center"
-                        Foreground="{StaticResource Music.Text.Secondary}" AutomationProperties.AutomationId="TaskbarCollapse"
-                        AutomationProperties.Name="Return running applications to idle notch" ToolTipService.ToolTip="Return to idle" Click="OnCollapseClick">
-                    <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE70E;" FontSize="{StaticResource Type.Caption.Size}" />
-                </Button>
-                <TextBlock Grid.Row="1" Grid.ColumnSpan="5" Text="{x:Bind TaskbarState.StatusText, Mode=OneWay}"
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Top" Margin="4,8,0,0">
+                    <Button Grid.Column="0" Style="{StaticResource PrototypeMusicIconButton}" Width="{StaticResource Music.Collapse.Size}"
+                            Height="{StaticResource Music.Control.Height}" VerticalAlignment="Center"
+                            IsEnabled="{x:Bind MusicState.HasSession, Mode=OneWay}" Foreground="{StaticResource Music.Text.Primary}"
+                            AutomationProperties.AutomationId="TaskbarOpenMusic" AutomationProperties.Name="Open Music Mode"
+                            ToolTipService.ToolTip="Music Mode" Click="OnOpenMusicClick">
+                        <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8D6;" FontSize="{StaticResource Music.Control.IconSize}" />
+                    </Button>
+                    <Button x:Name="TaskbarCollapseButton" Style="{StaticResource PrototypeMusicIconButton}"
+                            Width="{StaticResource Music.Collapse.Size}" Height="{StaticResource Music.Control.Height}" VerticalAlignment="Center"
+                            Foreground="{StaticResource Music.Text.Secondary}" AutomationProperties.AutomationId="TaskbarCollapse"
+                            AutomationProperties.Name="Return running applications to idle notch" ToolTipService.ToolTip="Return to idle" Click="OnCollapseClick">
+                        <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE70E;" FontSize="{StaticResource Type.Caption.Size}" />
+                    </Button>
+                </StackPanel>
+                <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="4,2,0,0" Text="{x:Bind TaskbarState.StatusText, Mode=OneWay}"
                            Visibility="{x:Bind TaskbarState.StatusVisibility, Mode=OneWay}" TextTrimming="CharacterEllipsis"
                            Style="{StaticResource Type.Caption}" Foreground="{StaticResource Music.Text.Primary}"
                            AutomationProperties.AutomationId="TaskbarStatus" AutomationProperties.LiveSetting="Polite" />

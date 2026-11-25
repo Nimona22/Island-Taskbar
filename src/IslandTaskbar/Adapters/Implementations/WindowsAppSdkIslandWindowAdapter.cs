@@ -57,7 +57,7 @@ namespace IslandTaskbar.Adapters.Implementations
             nint exStyle = PInvoke.GetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
             PInvoke.SetWindowLongPtr(hwnd, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, exStyle | (nint)WINDOW_EX_STYLE.WS_EX_LAYERED);
 
-            MARGINS margins = new()
+            Windows.Win32.UI.Controls.MARGINS margins = new()
             {
                 cxLeftWidth = -1,
                 cxRightWidth = -1,
