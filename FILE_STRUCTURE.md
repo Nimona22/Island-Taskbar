@@ -2,12 +2,15 @@
 
 **Project:** IslandTaskbar  
 **Document status:** Draft v0.1  
-**Last updated:** 2026-11-19  
+**Last updated:** 2026-11-25
+
 **Depends on:** `PRD.md`, `SCOPE.md`, `ARCHITECTURE.md`, `DATABASE_SCHEMA.md`, `ENV.md`, `CONVENTIONS.md`, `DECISIONS.md`, `AGENT.md`
 
 > This document defines the planned repository and solution structure. It is a planning reference, not authorization to generate project or source files. No files are created by reading this document.
 >
 > Follow `AGENT.md` §4 workflow before creating any file or folder. Where this document and another project document conflict, stop and report the conflict per `AGENT.md` §16.
+
+**Phase 5.2 specialization:** §F.4 is the exact M0 contract and sequential ownership map under the approved architecture contract. It takes precedence over older proposed-tree placeholders only for Phase 5.2. No placeholder implementation is authorized by that map.
 
 ---
 
@@ -257,7 +260,7 @@ Simple data types: records, classes, and enumerations that represent the applica
 
 The file I/O layer for local settings. Services in this folder read and write the JSON files defined in `DATABASE_SCHEMA.md` §4. All writes are atomic (write to a temp file, then replace). Files validate loaded values and fall back to safe defaults (`CONVENTIONS.md` §F; `AGENT.md` §10). Persistence services do not interact with the UI or with adapters. They depend only on `Models/`.
 
-The application-data folder path is resolved at runtime from the Windows environment (e.g., `Environment.GetFolderPath(SpecialFolder.LocalApplicationData)`). The folder name inside that path is not yet decided (OD-006). Do not hard-code a folder name; use a placeholder constant that is easy to replace when OD-006 is resolved.
+For Phase 5.2 pins, resolve LocalApplicationData at runtime and use `PinsStorageContract.DirectoryName` / `FileName` for `%LOCALAPPDATA%\IslandTaskbar\pins.json` (D-014, OD-006 pins scope resolved). The store interface belongs here, not in Windows Adapters/Interfaces. No native API or UI dependency is added to persistence.
 
 ---
 
@@ -334,7 +337,7 @@ Additional rules:
 | `Presentation/` | `Adapters/` directly, `Persistence/`, Win32 |
 | `ViewModels/` | `Adapters/Implementations/`, `Persistence/`, Win32 |
 | `Services/` | `Adapters/Implementations/` (use interfaces only), Win32, `Presentation/`, `ViewModels/` |
-| `Adapters/Interfaces/` | Anything in this project (pure interfaces) |
+| `Adapters/Interfaces/` | Services, implementations, persistence or presentation; neutral Models are permitted in boundary signatures |
 | `Adapters/Implementations/` | `Presentation/`, `ViewModels/`, `Services/` |
 | `Models/` | Anything in this project |
 | `Persistence/` | `Adapters/`, `Services/`, `Presentation/`, `ViewModels/` |
@@ -431,25 +434,55 @@ Test files mirror the type under test with a `Tests` suffix. Fake adapter implem
 
 ### F.2 Filesystem Path
 
-The runtime path to the data directory is resolved from the Windows environment in `SettingsFileService` and `PinsFileService`. The folder name within `LocalApplicationData` is a named constant declared in `Persistence/JsonSchemaVersion.cs` or a dedicated constants file. That constant is marked provisional and easy to replace when OD-006 is resolved.
+For Phase 5.2, `PinsFileService` resolves the data directory at runtime using LocalApplicationData plus `PinsStorageContract.DirectoryName`. The approved pin path is `%LOCALAPPDATA%\IslandTaskbar\pins.json` (D-014). Settings/recovery implementation remains outside this phase. No settings schema constant or migration implementation is added by M0.
 
 ```csharp
-// PROVISIONAL — OD-006: folder name not yet approved. Replace when decision is recorded.
-private const string AppDataFolderName = "IslandTaskbar";
+// D-014: relative names only; M1 performs runtime path resolution.
+Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+    PinsStorageContract.DirectoryName, PinsStorageContract.FileName);
 ```
 
 Do not hard-code an absolute path. Do not store data beside the installed binaries (`DATABASE_SCHEMA.md` §5; `CONVENTIONS.md` §F.1).
 
 ### F.3 JSON File Locations at Runtime
 
-The expected runtime layout (not committed to the repository):
+Phase 5.2 runtime layout (never committed):
 
 ```
-%LOCALAPPDATA%\<AppDataFolderName>\   ← folder name governed by OD-006
-    settings.json
+%LOCALAPPDATA%\IslandTaskbar\
     pins.json
-    recovery.json                      ← only if SPIKE-002 requires it
+    pins.json.lock                     ← empty exclusive writer-handle coordination artifact
+    pins.json.<guid>.tmp                ← same-directory atomic-commit scratch; not a recovery source
 ```
+
+### F.4 Phase 5.2 frozen contracts and exact sequential ownership (D-015)
+
+All paths below are relative to `src/IslandTaskbar/` unless stated otherwise. All new declarations are internal, follow existing Allman/nullable/async conventions and remain integration-owned after M0. The .NET runtime supplies immutable collections; no package or extra production project is introduced.
+
+| Owner / milestone | Exact files | Responsibility |
+|---|---|---|
+| M0 integration — immutable identity | `Models/PinId.cs`, `Models/ApplicationIdentity.cs`, `Models/LaunchReference.cs` | Persistent GUID versus runtime identity versus typed launch intent; kind-aware path/opaque-ID value equality. |
+| M0 integration — resolution | `Models/ApplicationDetails.cs`, `Models/ApplicationIcon.cs`, `Models/ApplicationResolutionResult.cs`, `Models/ApplicationWindowIdentityResult.cs` | Runtime payloads, reliable optional identity, immutable pixels, explicit resolution distinctions. |
+| M0 integration — native operation results | `Models/ApplicationLaunchResult.cs`, `Models/ApplicationSourceSelectionResult.cs` | Accepted/busy/uncertain dispatch and selected/canceled chooser results. |
+| M0 integration — pin/storage state | `Models/PinnedApp.cs`, `Models/PinsData.cs`, `Models/PinsLoadResult.cs`, `Models/PinsSaveResult.cs`, `Models/PinMutationResult.cs`, `Models/PinnedAppRuntimeState.cs`, `Models/PinManagerSnapshot.cs` | v1 payload, typed operational failures and runtime state separate from persistence. |
+| M0 integration — storage boundary | `Persistence/IPinsFileStore.cs`, `Persistence/PinsStorageContract.cs` | Async-disposable store operations and approved relative names only. |
+| M0 integration — native boundaries | `Adapters/Interfaces/IApplicationResolver.cs`, `Adapters/Interfaces/IApplicationLauncher.cs`, `Adapters/Interfaces/IApplicationSourcePicker.cs` | Frozen native signatures, results and asynchronous lifetime. |
+| M0 integration — service boundaries | `Services/IPinManagerService.cs`, `Services/IApplicationLauncherService.cs` | Frozen mutation, refresh, launch and source-selection APIs; no implementations. |
+| M1 persistence | `Persistence/PinsFileService.cs`, `Services/PinManagerService.cs` | Implement the frozen store/service boundaries, including private serialization/lease helpers in those files. No native discovery, UI or shared-contract edits. |
+| M1 focused tests | repository-root `Phase52.PersistenceTests/Phase52.PersistenceTests.csproj`, `Phase52.PersistenceTests/Program.cs` | Dependency-free temporary-directory/fake-resolver tests; no new test package. |
+| M2 Windows adapters | `Adapters/Implementations/Win32ApplicationResolver.cs`, `Win32ApplicationLauncher.cs`, `Win32ApplicationSourcePicker.cs` (all in the same Implementations directory) | Real validated EXE/LNK/verified-packaged resolution, native chooser and launch. No direct shared-file edits. |
+| M2 optional native helpers | `Adapters/Implementations/ApplicationShellWorker.cs`, `Adapters/Implementations/ApplicationIconLoader.cs` | Only if required for apartment ownership or immutable native icon extraction; no files/stubs created in M0. |
+| M2 focused tests | repository-root `Phase52.AdapterTests/Phase52.AdapterTests.csproj`, `Phase52.AdapterTests/Program.cs` | Isolated adapter evidence; real launches require explicit test actions, never startup side effects. |
+| M3 integration | `Services/ApplicationLauncherService.cs`, `App.xaml.cs`, `ViewModels/TaskbarViewModel.cs`, `Presentation/Windows/IslandWindow.xaml`, `Presentation/Windows/IslandWindow.xaml.cs` | Manual composition, launch orchestration and separate Pinned/Open windows UI. Do not edit during M0/M1/M2. |
+| M3 measured height integration | `Controllers/IslandWindowController.cs`, `Controllers/IIslandWindowController.cs`, `Adapters/Interfaces/IIslandWindowAdapter.cs`, `Adapters/Implementations/WindowsAppSdkIslandWindowAdapter.cs`, `Models/IslandPrototypeGeometry.cs`, `Models/IslandSurfaceLayoutEventArgs.cs`, `Styles/Tokens.xaml` | Only changes required for measured combined Taskbar height; preserve idle/Music and existing controller ownership. No edits in M0. |
+| Integration only — native declarations | `NativeMethods.txt` | M2 submits required CsWin32 declaration names in its handoff. Integration reviews/merges them; no hand-written P/Invoke or direct M2 edit. This is the existing actual binding-list file, not the older `win32.json` sketch. |
+| M0 focused contract tests | repository-root `Phase52.ContractTests/Phase52.ContractTests.csproj`, `Phase52.ContractTests/Program.cs` | Pure value equality/hash checks plus compilation of shared declarations; no native/persistence implementation. |
+| Integration documentation | repository-root `ARCHITECTURE.md`, `DATABASE_SCHEMA.md`, `DECISIONS.md`, `FILE_STRUCTURE.md`, relevant `CONVENTIONS.md` persistence paragraphs, `Phase52.M0.ImplementationPlan.md`, `Phase52.M0.VerificationReport.md` | Record the approved source, M0 mapping, ownership and evidence. Supplied approved contract is read-only input. |
+| M4 QA/reviewer | Read-only source access and verification report | No concurrent source edits; real desktop evidence complements automated checks. |
+
+Namespaces: Models use `IslandTaskbar.Models`; file-store contracts/constants/implementation use `IslandTaskbar.Persistence`; application service interfaces/implementations use `IslandTaskbar.Services`; Windows boundaries use `IslandTaskbar.Adapters.Interfaces` and implementations use `IslandTaskbar.Adapters.Implementations`. Do not add a second pin manager, launcher, identity model or window enumerator. Enums may share the result/model file they describe, as existing model conventions do.
+
+The same sole implementation agent executes **M1, then M2, then M3, then M4**, only after M0 review/acceptance. One milestone owns a file at a time. Any additional shared file or signature change requires updating this contract map before implementation. The existing Phase 5.1 models, window service/adapter and media implementation remain untouched by M0. Existing `.gitignore` keeps Phase* artifacts and DECISIONS local; do not confuse an ignored handoff artifact with a missing disk file or silently change that privacy policy.
 
 ---
 
@@ -647,7 +680,7 @@ Changes follow `AGENT.md` §16: propose the change, get approval, then update. R
 
 | Decision | Effect on structure | Rule until resolved |
 |---|---|---|
-| OD-006 — Application-data folder name | Folder name constant in `Persistence/` | Use a named provisional constant; do not hard-code |
+| OD-006 — Application-data folder name | Pins names in `Persistence/PinsStorageContract.cs` | Pins scope resolved by D-014; other settings/recovery details remain open |
 | OD-007 — Technical spike location | No spike folder exists yet | Do not create a spike folder without approval |
 | OD-011 — Island window controller form and layer | `Controllers/` contents and interface | Folder exists; no Win32 logic until resolved |
 | OD-012 — First-run state storage | `FirstRunWindow.xaml`, `FirstRunViewModel.cs`, first-run field in persistence | Do not create these files until `DATABASE_SCHEMA.md` is updated |

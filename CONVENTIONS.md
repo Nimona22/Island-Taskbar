@@ -2,7 +2,8 @@
 
 **Project:** IslandTaskbar  
 **Document status:** Draft v0.1  
-**Last updated:** 2026-11-19  
+**Last updated:** 2026-11-25
+
 **Depends on:** `PRD.md`, `SCOPE.md`, `USER_STORIES.md`, `ARCHITECTURE.md`, `DATABASE_SCHEMA.md`, `ENV.md`, `DESIGN_SYSTEM.md`, `BRAND.md`, `AGENT.md`, `DECISIONS.md`, `TESTING.md`
 
 > This document records the coding and contribution conventions for IslandTaskbar. It governs how contributors write, structure, and maintain code and project documents. It does not restate requirements, architecture, or design; those live in the documents above and are referenced by section.
@@ -135,6 +136,8 @@ User-facing errors are concise and actionable. They do not expose stack traces, 
 Implement `IDisposable` on any type that holds native handles, COM objects, subscriptions, or other unmanaged resources. Use `using` declarations and `using` blocks at the call site. Release event subscriptions explicitly. Release COM objects and native handles according to their documented contracts.
 
 Unsubscribe from events in `Dispose` to prevent memory leaks from event handler retention. Timers, watchers, and other disposable periodic objects belong to a service's lifetime and must be stopped and disposed when the service is disposed.
+
+Phase 5.2 exception (D-015): the new pin-store, pin/launcher service and native application interfaces use `IAsyncDisposable` so in-flight commits and apartment-owned cleanup can drain without blocking the UI dispatcher. Await their disposal in the documented owner order; do not alter existing Phase 5.1 IDisposable contracts or dispose borrowed dependencies.
 
 ### B.9 Comments and XML Documentation
 
@@ -378,7 +381,7 @@ Build only what the current assigned story requires. Do not add abstractions, ad
 
 User preferences, pins, and layout settings are stored as versioned JSON files in the per-user application data directory. No database, embedded database engine, or cloud backend is permitted (`DATABASE_SCHEMA.md` §0; D-005).
 
-The exact application folder name under the data directory is not yet defined (OD-006). Do not choose a folder name. Do not store data beside the installed binaries.
+For Phase 5.2 pins, D-014 resolves OD-006 to `%LOCALAPPDATA%\IslandTaskbar\pins.json`; use the relative names in `Persistence/PinsStorageContract.cs`. Other settings/recovery storage details remain outside this phase. Do not store data beside installed binaries.
 
 ### F.2 Schema Versioning
 
@@ -390,11 +393,11 @@ Always write settings files atomically: write to a temporary file in the same di
 
 ### F.4 Validation and Safe Defaults
 
-Validate every value read from a settings file. Do not trust that the file contains well-formed data or that fields are present. Fall back to a documented safe default for any missing or unrecognized field. Core taskbar functionality must remain available when optional settings are missing or corrupt (`DATABASE_SCHEMA.md` §5).
+Validate every value read from a settings file. Do not trust that the file contains well-formed data or that fields are present. Core taskbar functionality must remain available when optional settings are missing or corrupt (`DATABASE_SCHEMA.md` §5). For Phase 5.2 pins, only a missing file is empty data; invalid/corrupt/unsupported originals are preserved in read-only recovery. Never write an in-memory fallback over them. Follow the lease, revision and save-before-publish rules in `DATABASE_SCHEMA.md` §4.1.
 
 ### F.5 New Files and Fields
 
-Do not create a new settings file or add a new field without an approved update to `DATABASE_SCHEMA.md` §4. The only files currently defined are `settings.json`, `pins.json`, and `recovery.json` (conditional). The first-run completion field is not yet defined (OD-012); do not add it until `DATABASE_SCHEMA.md` is updated.
+Do not create a new settings file or add a new field without an approved update to `DATABASE_SCHEMA.md` §4. The settings files are `settings.json`, `pins.json`, and `recovery.json` (conditional). Phase 5.2 also defines an empty `pins.json.lock` writer lease and same-directory commit temp files (§4.1); these are coordination artifacts, not new settings. The first-run completion field is not yet defined (OD-012); do not add it until `DATABASE_SCHEMA.md` is updated.
 
 ### F.6 No Sensitive Data
 
@@ -627,7 +630,7 @@ The following decisions in `DECISIONS.md` Section 4 are unresolved. Conventions 
 | OD-003 — Testing frameworks and measurement strategy | I | All test execution is manual. Add no test framework package. |
 | OD-004 — Code formatting and analyzer configuration | B.10 | Follow existing code style. Add no `.editorconfig` or analyzer package. |
 | OD-005 — Git branching and commit conventions | J.5 | Small, focused commits with descriptive messages. D-011 applies in full. |
-| OD-006 — Application-data folder name and exact paths | F.1 | Do not choose a folder name. Do not store data beside the binaries. |
+| OD-006 — Application-data folder name and exact paths | F.1 | Pins scope resolved by D-014: LocalApplicationData/IslandTaskbar/pins.json. Other scope remains open; never store data beside binaries. |
 | OD-011 — Island window controller form | D.1, E.3 | Do not implement anchoring, topmost, hit-test, or display-change Win32 logic. |
 | OD-012 — First-run state storage and content | F.5 | Do not add a file or field. Wait for `DATABASE_SCHEMA.md` update. |
 | OD-022 — Telemetry and diagnostics | H.4 | No telemetry. Local logging only, no personal content. Write through an interface. |

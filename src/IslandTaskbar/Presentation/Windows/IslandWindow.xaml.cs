@@ -697,19 +697,36 @@ namespace IslandTaskbar.Presentation.Windows
                 || (PInvoke.GetAsyncKeyState(0x04) & 0x8000) != 0;
             bool newPress = isDown && !_wasMouseDown;
             _wasMouseDown = isDown;
-            if (!newPress || _isPointerInside || _isPointerPressedInside || _isContextMenuOpen) return;
+
+            // Authoritative pointer-inside tracking: the layered window with a native region
+            // does not reliably raise XAML PointerExited when the cursor leaves the region, so
+            // poll the cursor against the surface layout on every tick and drive the auto-dismiss
+            // countdown from the inside/outside transitions.
+            bool nowInside = _isPointerInside;
             if (_windowHandle != 0 && _lastLayout is not null
                 && PInvoke.GetCursorPos(out var pt)
                 && PInvoke.ScreenToClient((HWND)_windowHandle, ref pt))
             {
                 double x = pt.X / _lastLayout.RasterizationScale;
                 double y = pt.Y / _lastLayout.RasterizationScale;
-                if (x < _lastLayout.Left || x > _lastLayout.Left + _lastLayout.Width
-                    || y < _lastLayout.Top || y > _lastLayout.Top + _lastLayout.Height)
+                nowInside = x >= _lastLayout.Left && x <= _lastLayout.Left + _lastLayout.Width
+                    && y >= _lastLayout.Top && y <= _lastLayout.Top + _lastLayout.Height;
+            }
+            if (nowInside != _isPointerInside)
+            {
+                _isPointerInside = nowInside;
+                if (nowInside)
                 {
-                    IslandState.Collapse();
+                    _autoDismissTimer.Stop(); // re-entry cancels the pending dismissal
+                }
+                else
+                {
+                    EvaluateAutoDismiss(); // leaving starts a fresh 1.5 s countdown
                 }
             }
+
+            if (!newPress || nowInside || _isPointerPressedInside || _isContextMenuOpen) return;
+            IslandState.Collapse();
         }
 
         private void EvaluateAutoDismiss()

@@ -2,10 +2,13 @@
 
 **Working product name:** IslandTaskbar  
 **Document status:** Draft v0.2  
-**Last updated:** 2026-11-19  
+**Last updated:** 2026-11-25
+
 **Depends on:** `PRD.md`, `SCOPE.md`, `USER_STORIES.md`
 
 > This document describes the intended technical shape of a clean-start project. It does not assume that an earlier prototype or generated code exists. Decisions marked **Needs validation** must be proven on the target Windows machine before they are treated as implementation facts.
+
+**Phase 5.2 authority:** `Phase52_Island_App_Presence_Architecture_Contract.md` v1.0 is the approved baseline (D-013 through D-015). Sections 6.1–6.6 below specialize older general sketches for this phase. Phase 5.1 is accepted; its current source and behavior remain the baseline. Native taskbar hiding, Start/Search and unrelated historical debt are not authorized by Phase 5.2.
 
 ---
 
@@ -149,7 +152,9 @@ Encapsulate Windows-specific calls behind narrow interfaces. This allows APIs to
 |---|---|---|
 | `ITaskbarVisibilityController` | Hide and restore native taskbar windows | Release 1 |
 | `IWindowSystem` | Enumerate, inspect, restore, and activate application windows | Release 1 |
-| `IApplicationLauncher` | Launch applications and Windows experiences | Release 1 |
+| `IApplicationLauncher` | Dispatch explicitly selected application launch targets; no window activation or Start/Search in Phase 5.2 | Release 1 / Phase 5.2 |
+| `IApplicationResolver` | Validate typed targets, real metadata and reliable identity for one supplied window; no window discovery | Phase 5.2 |
+| `IApplicationSourcePicker` | Select a native local EXE/LNK source with the real IslandWindow owner | Phase 5.2 |
 | `IDisplayService` | Monitor and DPI information | Release 1 |
 | `IAudioService` | Volume and mute state/control | Release 2 |
 | `IMediaSessionService` | Active media sessions and supported playback commands | Release 3 |
@@ -269,6 +274,112 @@ Window discovery should be event-driven where a supported notification is availa
 
 Prefer invoking the existing Windows Start and Search experiences through supported mechanisms or documented keyboard/shell activation behavior. Do not attempt to rebuild the Windows Start menu as part of the MVP.
 
+### 6.1 Island App Presence — approved Phase 5.2 semantics (D-013)
+
+Use two labeled horizontal areas, **Pinned** and **Open windows**, in one continuous warm-glass surface. A pin is durable launch intent; a window is one live workspace. One Chrome pin plus three Chrome windows produces four separate entries. Never group or hide eligible windows behind a pin.
+
+- Clicking a pin requests launch of its revalidated target even when matching windows exist. It never selects, cycles or activates an existing window. The OS/application may reuse an instance; no promise of a new process/window is made.
+- Clicking a running entry continues through `WindowManagerService.ActivateAsync` for that exact `RunningWindowId`, including minimized restoration. Keep accepted stable ordering, active/minimized indicators, keyboard access and automatic dismissal.
+- Provide an always-reachable **Add application…** action using the native chooser. Pin from a window only when the resolver returns a trustworthy relaunch reference. Cancel changes nothing. Unpin never closes a window, deletes the original shortcut or uninstalls an app.
+- Availability and positive running presence are separate runtime facts. Show a running marker only for a trustworthy identity match. No match means unknown, not “not running”; do not show precise counts. Failed enrichment never hides/disables a running entry and never writes/reorders pins.
+- No installed-app catalogue, Start/Search (Phase 5.3), grouping, previews, drag reordering, background/startup launches, command-interpreter strings, automatic elevation or native-taskbar changes. `P23-TOPMOST-001` remains unresolved.
+
+### 6.2 Shared identity and immutable model freeze (D-014)
+
+M0 declares the internal types in `IslandTaskbar.Models`; concrete source definitions are the signature authority. Shared declarations are frozen for M0 review, not a claim that M1/M2/M3 are implemented.
+
+| Contract | Meaning / invariant |
+|---|---|
+| `PinId(Guid Value)` | Persistent GUID; reject `Guid.Empty` at load/service boundaries. Generated once for a successful new pin; moves/restarts do not change it. |
+| `ApplicationIdentity(ApplicationIdentityKind Kind, string Value)` | Runtime-only `AppUserModelId` or canonical full `ExecutablePath`. Never title, basename, display name or PID alone. |
+| `LaunchReference(LaunchReferenceKind Kind, string Value)` | Typed EXE/LNK/verified-packaged intent; not an identity and not proof of availability. Resolver/persistence boundaries reject invalid kind/value pairs. |
+| `PinnedApp`, `PinsData` | Immutable v1 committed pin payload; `PinsData.CurrentSchemaVersion = 1`. No runtime presence, HWND/PID, busy state or icon pixels. |
+| `ApplicationDetails`, `ApplicationIcon` | Runtime name, target, optional reliable identity and immutable copied BGRA pixels. No native handle crosses into models. A missing icon does not invalidate an otherwise valid target. |
+| `ApplicationResolutionResult`, `ApplicationWindowIdentityResult` | Distinguish Available, Missing, Unsupported, AccessDenied and Failed. Ordinary target resolution requires Application on Available; window identity requires Identity but may lack a trustworthy relaunch reference. |
+| `ApplicationSourceSelectionResult` | Selected (typed Source required), Canceled, Unavailable or Failed. Selection neither launches nor pins. |
+| `ApplicationLaunchResult` | Accepted, Busy, Canceled, Unavailable, StaleTarget, Unsupported, Denied, Failed or OutcomeUnknown. Accepted proves only OS dispatch acceptance. |
+| `PinsLoadResult`, `PinsSaveResult` | Explicit load/save status, opaque revision and write access; invalid/unreadable input never becomes writable empty data. See `DATABASE_SCHEMA.md` §4.1. |
+| `PinMutationResult` | Saved, Unchanged, AlreadyPinned, NotFound, NotInitialized, InvalidSource, ReadOnly, Conflict or SaveFailed. InvalidSource retains the resolver status. |
+| `PinManagerSnapshot`, `PinnedAppRuntimeState` | Immutable committed pin sequence plus a separate immutable runtime-state dictionary keyed by PinId. Runtime resolution may be pending; presence is only Unknown or positively Running. |
+
+Paths in identity/reference values must already be canonical full paths and compare with `OrdinalIgnoreCase`; opaque AppUserModelIDs compare with `Ordinal`. Kinds participate in equality and hashing. The records implement those value semantics; they do not validate, canonicalize or discover anything. Distinct shortcut paths remain distinct intents even when they resolve to the same EXE. An argument-bearing/profile shortcut gets no generic EXE identity unless the resolver can prove the relationship. Unknown identity is nullable, not a fabricated key. Default/empty identity/reference structs are invalid at boundaries.
+
+Use BCL `ImmutableArray`/`ImmutableDictionary` without additional packages. Arrays must be initialized, including empty collections. Preserve existing `RunningWindow`, `RunningWindowId` and `WindowIcon` unchanged. `ApplicationIcon` avoids introducing mutable pixel arrays into new snapshots.
+
+### 6.3 Frozen interfaces and service responsibilities (D-015)
+
+All six new interfaces extend `IAsyncDisposable`; implementations arrive in later milestones. Every asynchronous operation below requires `CancellationToken cancellationToken`. Existing Phase 5.1 `IDisposable` contracts are unchanged.
+
+```text
+IslandTaskbar.Persistence.IPinsFileStore
+  Task<PinsLoadResult> LoadAsync(CancellationToken cancellationToken)
+  Task<PinsSaveResult> SaveAsync(PinsData data, string? expectedRevision, CancellationToken cancellationToken)
+
+IslandTaskbar.Adapters.Interfaces.IApplicationResolver
+  Task<ApplicationResolutionResult> ResolveAsync(LaunchReference source, CancellationToken cancellationToken)
+  Task<ApplicationWindowIdentityResult> IdentifyWindowAsync(RunningWindowId runningWindowId, CancellationToken cancellationToken)
+
+IslandTaskbar.Adapters.Interfaces.IApplicationLauncher
+  Task<ApplicationLaunchResult> LaunchAsync(LaunchReference launchReference, CancellationToken cancellationToken)
+
+IslandTaskbar.Adapters.Interfaces.IApplicationSourcePicker
+  Task<ApplicationSourceSelectionResult> PickAsync(CancellationToken cancellationToken)
+
+IslandTaskbar.Services.IPinManagerService
+  event EventHandler? Changed
+  PinManagerSnapshot Current { get; }
+  Task<PinsLoadResult> InitializeAsync(CancellationToken cancellationToken)
+  Task<PinMutationResult> PinAsync(LaunchReference source, CancellationToken cancellationToken)
+  Task<PinMutationResult> UnpinAsync(PinId pinId, CancellationToken cancellationToken)
+  Task<PinMutationResult> MoveAsync(PinId pinId, PinId? beforePinId, CancellationToken cancellationToken)
+  Task<ApplicationWindowIdentityResult> ResolveWindowAsync(RunningWindowId runningWindowId, CancellationToken cancellationToken)
+  Task RefreshAvailabilityAsync(PinId pinId, CancellationToken cancellationToken)
+
+IslandTaskbar.Services.IApplicationLauncherService
+  Task<ApplicationLaunchResult> OpenAsync(PinId pinId, CancellationToken cancellationToken)
+  Task<ApplicationSourceSelectionResult> SelectSourceAsync(CancellationToken cancellationToken)
+```
+
+- `PinsFileService` implements `IPinsFileStore`: local wire encoding/validation, exclusive lease, revision compare and atomic commit. It has no Windows adapter, view model or UI dependency.
+- `PinManagerService` implements `IPinManagerService`: serialized initialization/reload, pin/unpin/move, save-before-publish and lightweight runtime enrichment. `Current` is an atomically replaced snapshot. `Changed` may occur off the UI thread; the view model marshals reconciliation. Save failure retains committed pins/order/revision. Duplicate canonical references return AlreadyPinned with the existing ID and do not write. Successful unpin/move makes order contiguous from zero.
+- `MoveAsync(id, null)` appends; moving before self or into the current position returns Unchanged. A nonexistent pin or before-pin returns NotFound without saving. “Move earlier” inserts before the preceding item. “Move later” inserts before the item two places after it, or appends at the end. Derive this from the latest keyed snapshot; serialized service validation rejects stale targets.
+- Repeating `InitializeAsync` is an explicit reload/lease-recovery request, serialized with mutations. Before the first completed load attempt, IsInitialized is false and mutations return NotInitialized. After an attempted load it is true even if recovery is read-only; first-load failures expose a read-only empty view, not writable empty data. Later failures retain the last committed collection. `RefreshAvailabilityAsync` does no persistence; a removed pin is a harmless stale runtime refresh with no new entry.
+- `ApplicationLauncherService` implements `IApplicationLauncherService`: snapshot the selected pin, revalidate, check the same pin/reference still exists before dispatch, reject simultaneous requests for the same canonical reference as Busy, then call the launcher. A removed/changed pin is StaleTarget; an unavailable target is Unavailable/Unsupported/Denied as applicable. No fallback to another window or launch target. `SelectSourceAsync` only chooses; the caller explicitly invokes PinAsync for Selected.
+- `WindowManagerService` remains the only running-window snapshot/activation owner. Enrichment queries only supplied IDs; the pin manager checks the full ID still exists before and after asynchronous work, discarding stale replies. No additional EnumWindows path or process monitor. `ResolveWindowAsync` exposes this through the service boundary for a window context action: return Missing with no identity/reference for a stale ID; do not persist. Its native work is off-UI and uses the resolver cancellation contract. M3 offers Pin application only when this result contains a trustworthy RelaunchReference, then passes that reference to PinAsync for revalidation. The view model never calls the resolver adapter or derives a relaunch target from a title/basename/PID.
+
+Resolution/read/mutation operations honor cancellation using canceled tasks before irreversible commit. Picker Canceled distinguishes user dismissal; token cancellation may cancel the task after the native dialog is safely closed. Launch Canceled (or a canceled task) is allowed only when no dispatch occurred. Once dispatch may have occurred, return Accepted if known accepted, otherwise OutcomeUnknown; never automatically retry or create a phantom window. Once atomic save commits, return Saved and publish that committed snapshot even if cancellation arrived meanwhile.
+
+### 6.4 Composition, ownership and shutdown
+
+Keep manual construction in `App.xaml.cs`. These are future constructor contracts, not M0 implementations:
+
+```text
+PinsFileService(string? dataDirectory = null)
+  null -> runtime LocalApplicationData/IslandTaskbar; tests inject an isolated directory
+PinManagerService(IPinsFileStore store, IApplicationResolver resolver, WindowManagerService windows)
+ApplicationLauncherService(IPinManagerService pins, IApplicationResolver resolver,
+                           IApplicationLauncher launcher, IApplicationSourcePicker picker)
+Win32ApplicationResolver()
+Win32ApplicationLauncher()
+Win32ApplicationSourcePicker(Func<nint> ownerWindowProvider)
+```
+
+Construct one existing window service and one resolver. The taskbar view model owns new pin/launcher services and the existing window service. The pin manager owns its store/resolver and borrows the window service. The launcher service owns launcher/picker and borrows pins/the same resolver. Never dispose borrowed dependencies.
+
+On shutdown, stop accepting commands, cancel/await and dispose the launcher service first (including picker), then pin manager (unsubscribe windows, drain operations, dispose store/resolver), then the existing window service. Keep the dispatcher alive while awaiting new asynchronous disposal; do not block it with Wait/Result. New asynchronous disposal is required so file commits and apartment-owned COM cleanup can complete before the lease/worker is released. M0 does not change existing shutdown or media behavior.
+
+Native shell/COM instances are created, used and released on their owning worker apartment, off the UI thread. Async continuations must not move COM ownership to arbitrary pool threads. The chooser obtains the real IslandWindow handle through a deferred owner provider: capture it on the caller/UI thread before posting dialog work; zero/unavailable owner returns Unavailable. This avoids constructing a second window or a composition cycle. M3 owns an existing dismissal-guard scope around the awaited chooser call in try/finally, including cancellation and shutdown.
+
+### 6.5 Dynamic horizontal layout — integration requirement only
+
+Preserve 88×26 DIP idle, 420-DIP Taskbar width, top attachment at visible Y=0, Music Mode/GSMTC, warm glass, clipping, click-through and dismissal. Both labeled areas wrap left-to-right, with independent continuous vertical scrolling. No carousel, pagination arrows, vertical app sidebar, grouping or width growth. Pinned budgets a compact first row; Open windows retains its current three-visible-row target and four-column reference where it fits. Wheel/trackpad input stays with the area under the pointer, including at its boundary.
+
+The existing 200-DIP host envelope is insufficient for both areas. M3 must measure combined controls/labels/content, allocate area heights and adjust the existing controller/adapter downward, clamped to display/work-area constraints. Preserve at least one usable row per populated area when that space exists; if the work area is physically too small, report/verify the constrained fallback rather than clipping controls silently. Keep all remaining items scroll-accessible. Do not substitute an item-count-only fixed height or change idle/Music geometry. Verify final rounded/input regions at measured size.
+
+### 6.6 Scope gate and sequential ownership
+
+M0 adds only shared declarations and documentation. The exact file ownership map is `FILE_STRUCTURE.md` §F.4. After M0 review/acceptance, execute **M1 persistence → M2 Windows adapters → M3 integration → M4 verification** with the sole implementation agent. Shared declarations remain integration-owned; changes require a coordinated contract update, not local forks of the types. No M1/M2/M3 implementations are added or wired in M0. Phase 5.2 completion requires real Windows evidence from the approved contract §9; compilation alone is insufficient.
+
 ---
 
 ## 7. Local Data and Persistence
@@ -284,6 +395,8 @@ Use local application data for:
 - Recovery metadata only where required, stored with minimum necessary information.
 
 Start with versioned JSON files and atomic writes (write a temporary file, then replace the previous file). Validate data when loading and recover safely from missing or malformed settings. Do not store credentials or sensitive personal information.
+
+**Phase 5.2 pins specialize this general rule (D-014):** `%LOCALAPPDATA%\IslandTaskbar\pins.json`, schema 1 and validated `exe:`, `lnk:` or `packaged:` references. Only a missing file means writable empty pins, and only when the exclusive writer lease is held. Corrupt/invalid/unsupported-version data is preserved in read-only recovery, never overwritten with defaults. Save uses a same-directory flushed temporary file, revision validation and atomic replace/first creation; publish only after success. See `DATABASE_SCHEMA.md` §4.1 for the complete wire and recovery contract.
 
 > **Database decision:** No database is planned for the current product scope. `DATABASE_SCHEMA.md` should explicitly record that no database is required rather than inventing tables.
 
