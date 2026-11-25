@@ -31,6 +31,15 @@ Verify-Phase*
 Inspect-Phase*
 Diagnose-Phase*
 Refine*
+
+# ── 2b. Internal Planning & Agent Documents (never public) ───────────────────
+AGENT.md
+DECISIONS.md
+PRD.md
+SCOPE.md
+USER_STORIES.md
+ENV.md
+metadata.json
 *.VerificationReport.json
 *.RuntimeResults*.json
 *.LaunchContext.json
