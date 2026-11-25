@@ -30,6 +30,7 @@ Phase*
 Verify-Phase*
 Inspect-Phase*
 Diagnose-Phase*
+Refine*
 *.VerificationReport.json
 *.RuntimeResults*.json
 *.LaunchContext.json
