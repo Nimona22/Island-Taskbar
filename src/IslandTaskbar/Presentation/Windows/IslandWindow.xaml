@@ -70,6 +70,7 @@
                     ToolTipService.ToolTip="Expand IslandTaskbar" Click="OnIslandToggleClick">
                 <FontIcon x:Name="NotchIcon" FontFamily="Segoe Fluent Icons" Glyph="&#xECA5;"
                           FontSize="{StaticResource Taskbar.NotchIcon.Size}"
+                          IsTextScaleFactorEnabled="False"
                           HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
             </Button>
                 </Grid>
@@ -159,6 +160,11 @@
                               FontSize="{StaticResource Type.Caption.Size}" />
                 </Button>
             </Grid>
+            <ScrollViewer x:Name="TaskbarScrollViewer" Visibility="Collapsed"
+                          HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollMode="Enabled" VerticalScrollBarVisibility="Auto"
+                          HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top"
+                          IsTabStop="False">
             <Grid x:Name="TaskbarContent" Visibility="Collapsed" Opacity="0"
                   Margin="{StaticResource Taskbar.Content.Margin}" VerticalAlignment="Top"
                   ColumnSpacing="{StaticResource Space.Micro}" KeyDown="OnTaskbarKeyDown">
@@ -180,7 +186,7 @@
                     </Button>
                 </Grid>
                 <ListView x:Name="PinnedAppsListView" Grid.Row="1" Grid.ColumnSpan="2" Background="Transparent"
-                          MaxHeight="{StaticResource Taskbar.Row.Height}" SelectionMode="None" IsTabStop="False" ItemsSource="{x:Bind TaskbarState.Pins}"
+                          SelectionMode="None" IsTabStop="False" ItemsSource="{x:Bind TaskbarState.Pins}"
                           AutomationProperties.AutomationId="PinnedAppsListView" AutomationProperties.Name="Pinned applications"
                           ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                           ScrollViewer.IsVerticalScrollChainingEnabled="False"
@@ -189,15 +195,15 @@
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
                             <Setter Property="IsTabStop" Value="False" /><Setter Property="Padding" Value="0" />
-                            <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
-                            <Setter Property="Width" Value="{StaticResource Taskbar.Item.Extent}" /><Setter Property="Height" Value="{StaticResource Taskbar.Row.Height}" />
+                            <Setter Property="MinWidth" Value="0" />
+                            <Setter Property="Width" Value="{StaticResource Taskbar.Item.Extent}" /><Setter Property="MinHeight" Value="{StaticResource Taskbar.Row.Height}" />
                             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListViewItem"><ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" /></ControlTemplate></Setter.Value></Setter>
                         </Style>
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="viewModels:PinnedAppItemViewModel">
                             <Button Style="{StaticResource PrototypeMusicIconButton}" UseSystemFocusVisuals="True"
-                                    Width="{StaticResource Taskbar.Item.Width}" Height="{StaticResource Taskbar.Item.Height}"
+                                    Width="{StaticResource Taskbar.Item.Width}" MinHeight="{StaticResource Taskbar.Item.Height}"
                                     Margin="{StaticResource Taskbar.Item.Margin}" Click="OnPinnedAppClick"
                                     AutomationProperties.Name="{x:Bind AccessibleName, Mode=OneWay}" AutomationProperties.AutomationId="{x:Bind AutomationId}"
                                     ToolTipService.ToolTip="{x:Bind AccessibleName, Mode=OneWay}">
@@ -205,10 +211,10 @@
                                     <Grid Width="{StaticResource Taskbar.Icon.Size}" Height="{StaticResource Taskbar.Icon.Size}" HorizontalAlignment="Center">
                                         <Image Source="{x:Bind Icon, Mode=OneWay}" Visibility="{x:Bind IconVisibility, Mode=OneWay}" />
                                         <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE737;" Foreground="{StaticResource Music.Text.Secondary}"
-                                                  FontSize="{StaticResource Taskbar.Icon.Size}" Visibility="{x:Bind FallbackVisibility, Mode=OneWay}" />
-                                        <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE718;" FontSize="9"
+                                                  FontSize="{StaticResource Taskbar.Icon.Size}" IsTextScaleFactorEnabled="False" Visibility="{x:Bind FallbackVisibility, Mode=OneWay}" />
+                                        <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE718;" FontSize="9" IsTextScaleFactorEnabled="False"
                                                   Foreground="{StaticResource Music.Text.Primary}" HorizontalAlignment="Right" VerticalAlignment="Bottom" />
-                                        <TextBlock Text="{x:Bind StateGlyph, Mode=OneWay}" FontSize="9" Margin="0,-2,-8,0"
+                                        <TextBlock Text="{x:Bind StateGlyph, Mode=OneWay}" FontSize="9" IsTextScaleFactorEnabled="False" Margin="0,-2,-8,0"
                                                    Foreground="{StaticResource Music.Text.Secondary}" HorizontalAlignment="Right" VerticalAlignment="Top" />
                                     </Grid>
                                     <TextBlock Text="{x:Bind Title, Mode=OneWay}" MaxLines="1" TextTrimming="CharacterEllipsis"
@@ -230,7 +236,7 @@
                 <TextBlock Grid.Row="3" Grid.Column="0" Text="Open windows" Margin="2,0,0,2" Style="{StaticResource Type.Caption}"
                            Foreground="{StaticResource Music.Text.Primary}" AutomationProperties.AutomationId="OpenWindowsHeading" />
                 <ListView x:Name="RunningWindowsListView" Grid.Row="4" Grid.Column="0" Background="Transparent"
-                          MaxHeight="{StaticResource Taskbar.List.MaxHeight}" SelectionMode="None" IsTabStop="False"
+                          SelectionMode="None" IsTabStop="False"
                           ItemsSource="{x:Bind TaskbarState.Windows}"
                           AutomationProperties.AutomationId="RunningWindowsListView" AutomationProperties.Name="Running application windows"
                           ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -244,7 +250,7 @@
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
                             <Setter Property="IsTabStop" Value="False" /><Setter Property="Padding" Value="0" />
-                            <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
+                            <Setter Property="MinWidth" Value="0" />
                             <Setter Property="Width" Value="{StaticResource Taskbar.Item.Extent}" />
                             <Setter Property="MinHeight" Value="{StaticResource Taskbar.Row.Height}" />
                             <Setter Property="Template">
@@ -266,7 +272,7 @@
                                     <Grid Width="{StaticResource Taskbar.Icon.Size}" Height="{StaticResource Taskbar.Icon.Size}" HorizontalAlignment="Center">
                                         <Image Source="{x:Bind Icon, Mode=OneWay}" Visibility="{x:Bind IconVisibility, Mode=OneWay}" />
                                         <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE737;"
-                                                  Foreground="{StaticResource Music.Text.Secondary}" FontSize="{StaticResource Taskbar.Icon.Size}"
+                                                  Foreground="{StaticResource Music.Text.Secondary}" FontSize="{StaticResource Taskbar.Icon.Size}" IsTextScaleFactorEnabled="False"
                                                   Visibility="{x:Bind FallbackVisibility, Mode=OneWay}" />
                                     </Grid>
                                     <TextBlock Text="{x:Bind Title, Mode=OneWay}" MaxLines="2" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
@@ -289,13 +295,13 @@
                             IsEnabled="{x:Bind MusicState.HasSession, Mode=OneWay}" Foreground="{StaticResource Music.Text.Primary}"
                             AutomationProperties.AutomationId="TaskbarOpenMusic" AutomationProperties.Name="Open Music Mode"
                             ToolTipService.ToolTip="Music Mode" Click="OnOpenMusicClick">
-                        <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8D6;" FontSize="{StaticResource Music.Control.IconSize}" />
+                        <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8D6;" FontSize="{StaticResource Music.Control.IconSize}" IsTextScaleFactorEnabled="False" />
                     </Button>
                     <Button x:Name="TaskbarCollapseButton" Style="{StaticResource PrototypeMusicIconButton}"
                             Width="{StaticResource Music.Collapse.Size}" Height="{StaticResource Music.Control.Height}" VerticalAlignment="Center"
                             Foreground="{StaticResource Music.Text.Secondary}" AutomationProperties.AutomationId="TaskbarCollapse"
                             AutomationProperties.Name="Return running applications to idle notch" ToolTipService.ToolTip="Return to idle" Click="OnCollapseClick">
-                        <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE70E;" FontSize="{StaticResource Type.Caption.Size}" />
+                        <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE70E;" FontSize="{StaticResource Type.Caption.Size}" IsTextScaleFactorEnabled="False" />
                     </Button>
                 </StackPanel>
                 <TextBlock Grid.Row="5" Grid.ColumnSpan="2" VerticalAlignment="Bottom" Margin="4,2,0,0" Text="{x:Bind TaskbarState.StatusText, Mode=OneWay}"
@@ -303,6 +309,7 @@
                            Style="{StaticResource Type.Caption}" Foreground="{StaticResource Music.Text.Primary}"
                            AutomationProperties.AutomationId="TaskbarStatus" AutomationProperties.LiveSetting="Polite" />
             </Grid>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </Window>

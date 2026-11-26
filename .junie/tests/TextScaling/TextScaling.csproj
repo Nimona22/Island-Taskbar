@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../src/IslandTaskbar/Models/TaskbarRowSizing.cs" Link="TaskbarRowSizing.cs" />
+    <Compile Include="../../../src/IslandTaskbar/Models/IslandPrototypeGeometry.cs" Link="IslandPrototypeGeometry.cs" />
+    <Compile Include="../../../src/IslandTaskbar/Models/IslandSurfaceLayoutEventArgs.cs" Link="IslandSurfaceLayoutEventArgs.cs" />
+    <Compile Include="../../../src/IslandTaskbar/Models/IslandSurfaceOutline.cs" Link="IslandSurfaceOutline.cs" />
+    <Compile Include="../../../src/IslandTaskbar/Controllers/*IslandWindowController.cs" Link="%(Filename)%(Extension)" />
+    <Compile Include="../../../src/IslandTaskbar/Adapters/Interfaces/IIslandWindowAdapter.cs" Link="IIslandWindowAdapter.cs" />
+    <Compile Include="../../../src/IslandTaskbar/Adapters/Interfaces/IDisplayService.cs" Link="IDisplayService.cs" />
+  </ItemGroup>
+</Project>

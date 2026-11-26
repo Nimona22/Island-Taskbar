@@ -79,6 +79,7 @@ namespace IslandTaskbar.Presentation.Windows
         private bool _closing;
         private bool _measuringTaskbar;
         private bool _taskbarMeasureDirty = true;
+        private double _textScaleFactor;
         private double _availableDisplayPixels = double.PositiveInfinity;
 
         internal event EventHandler<IslandSurfaceLayoutEventArgs>? SurfaceLayoutChanged;
@@ -166,6 +167,8 @@ namespace IslandTaskbar.Presentation.Windows
             IslandSurface.EffectiveViewportChanged += OnEffectiveViewportChanged;
             WindowRoot.SizeChanged += OnRootSizeChanged;
             _uiSettings.AnimationsEnabledChanged += OnAnimationsEnabledChanged;
+            _uiSettings.TextScaleFactorChanged += OnTextScaleFactorChanged;
+            _textScaleFactor = _uiSettings.TextScaleFactor;
             VisibilityChanged += OnPrototypeVisibilityChanged;
             Closed += OnPrototypeClosed;
             MusicState.MediaStateChanged += OnMediaStateChanged;
@@ -173,6 +176,7 @@ namespace IslandTaskbar.Presentation.Windows
             TaskbarState.Windows.CollectionChanged += OnRunningWindowsChanged;
             TaskbarState.Pins.CollectionChanged += OnPinsChanged;
             TaskbarState.PropertyChanged += OnTaskbarStateChanged;
+            PinnedAppsListView.ContainerContentChanging += OnContainerContentChanging;
             RunningWindowsListView.ContainerContentChanging += OnContainerContentChanging;
             ApplyProgress(0);
         }
@@ -486,6 +490,7 @@ namespace IslandTaskbar.Presentation.Windows
             ExpandedContent.Visibility = progress > 0.4 && _expandedMode == IslandMode.Music ? Visibility.Visible : Visibility.Collapsed;
             TaskbarContent.Opacity = ExpandedContent.Opacity;
             TaskbarContent.Visibility = progress > 0.4 && _expandedMode == IslandMode.Taskbar ? Visibility.Visible : Visibility.Collapsed;
+            TaskbarScrollViewer.Visibility = TaskbarContent.Visibility;
             // Layout animation is deliberate: layout and native hit testing must use the same geometry.
             // LayoutUpdated reports after width, height, position and radii have all been applied.
         }
@@ -565,6 +570,34 @@ namespace IslandTaskbar.Presentation.Windows
             });
         }
 
+        private void OnTextScaleFactorChanged(UISettings sender, object args)
+        {
+            // Let WinUI apply its automatic text scaling before remeasuring the taskbar.
+            if (!DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+            {
+                if (_isClosed || _closing) return;
+                double nextScale = _uiSettings.TextScaleFactor;
+                if (nextScale == _textScaleFactor) return;
+                _textScaleFactor = nextScale;
+                _taskbarMeasureDirty = true;
+                InvalidateTaskbarMeasure(TaskbarContent);
+                WindowRoot.InvalidateMeasure();
+            }))
+            {
+                // The dispatcher can reject work during shutdown; never touch XAML on this thread.
+                Debug.WriteLine("Text-scale layout refresh rejected by the window dispatcher.");
+            }
+        }
+
+        private static void InvalidateTaskbarMeasure(UIElement element)
+        {
+            for (int index = 0; index < VisualTreeHelper.GetChildrenCount(element); index++)
+            {
+                if (VisualTreeHelper.GetChild(element, index) is UIElement child) InvalidateTaskbarMeasure(child);
+            }
+            element.InvalidateMeasure();
+        }
+
         private void OnPrototypeClosed(object sender, WindowEventArgs args)
         {
             _isClosed = true;
@@ -576,6 +609,7 @@ namespace IslandTaskbar.Presentation.Windows
             TaskbarState.Windows.CollectionChanged -= OnRunningWindowsChanged;
             TaskbarState.Pins.CollectionChanged -= OnPinsChanged;
             TaskbarState.PropertyChanged -= OnTaskbarStateChanged;
+            PinnedAppsListView.ContainerContentChanging -= OnContainerContentChanging;
             RunningWindowsListView.ContainerContentChanging -= OnContainerContentChanging;
             TaskbarState.Dispose();
             _autoDismissTimer.Stop();
@@ -590,6 +624,7 @@ namespace IslandTaskbar.Presentation.Windows
             _compositionLoops.Clear();
             _animationResources.Clear();
             _uiSettings.AnimationsEnabledChanged -= OnAnimationsEnabledChanged;
+            _uiSettings.TextScaleFactorChanged -= OnTextScaleFactorChanged;
             VisibilityChanged -= OnPrototypeVisibilityChanged;
             Activated -= OnWindowActivated;
             IslandSurface.PointerEntered -= OnSurfacePointerEntered;
@@ -687,8 +722,8 @@ namespace IslandTaskbar.Presentation.Windows
             double width = IslandPrototypeGeometry.TaskbarWidth - TaskbarContent.Margin.Left - TaskbarContent.Margin.Right;
             double scale = IslandSurface.XamlRoot?.RasterizationScale ?? 1;
             double available = _availableDisplayPixels / scale;
-            double windowRow = MeasureItemRow(RunningWindowsListView);
-            double pinRow = MeasureItemRow(PinnedAppsListView);
+            double windowRow = MeasureItemRow(RunningWindowsListView, 2);
+            double pinRow = MeasureItemRow(PinnedAppsListView, 1);
             PinnedAppsListView.MaxHeight = pinRow;
             RunningWindowsListView.MaxHeight = windowRow * 3;
             TaskbarContent.Measure(new Size(width, double.PositiveInfinity));
@@ -697,37 +732,69 @@ namespace IslandTaskbar.Presentation.Windows
             double viewportBudget = Math.Max(0, available - chrome);
             double pins = Math.Min(PinnedAppsListView.DesiredSize.Height, pinRow);
             double windows = Math.Min(RunningWindowsListView.DesiredSize.Height, windowRow * 3);
-            if (pins + windows > viewportBudget)
-            {
-                double pinMinimum = TaskbarState.Pins.Count > 0 ? Math.Min(pinRow, pins) : pins;
-                double windowMinimum = TaskbarState.Windows.Count > 0 ? Math.Min(windowRow, windows) : windows;
-                double minimum = pinMinimum + windowMinimum;
-                if (minimum > viewportBudget && minimum > 0)
-                {
-                    pins = viewportBudget * pinMinimum / minimum;
-                    windows = viewportBudget - pins;
-                }
-                else
-                {
-                    pins = pinMinimum;
-                    windows = Math.Min(windows, Math.Max(windowMinimum, viewportBudget - pins));
-                }
-            }
-            PinnedAppsListView.MaxHeight = pins + windows < viewportBudget ? pinRow : Math.Max(0, pins);
-            RunningWindowsListView.MaxHeight = pins + windows < viewportBudget ? windowRow * 3 : Math.Max(0, windows);
+            (pins, windows) = TaskbarRowSizing.GetViewportHeights(pins, windows, pinRow, windowRow, viewportBudget);
+            PinnedAppsListView.MaxHeight = Math.Max(0, pins);
+            RunningWindowsListView.MaxHeight = Math.Max(0, windows);
             TaskbarContent.Measure(new Size(width, double.PositiveInfinity));
             return Math.Max(IslandPrototypeGeometry.NotchHeight, Math.Min(available, TaskbarContent.DesiredSize.Height));
         }
 
-        private static double MeasureItemRow(ListView list)
+        private static double MeasureItemRow(ListView list, int titleLines)
         {
-            if (list.Items.Count > 0 && (list.ContainerFromIndex(0) as FrameworkElement ?? FindChild<ListViewItem>(list)) is FrameworkElement item)
+            ResourceDictionary resources = Application.Current.Resources;
+            double itemWidth = (double)resources["Taskbar.Item.Extent"];
+            var titleProbe = new TextBlock
             {
-                item.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                return item.DesiredSize.Height + list.Padding.Top + list.Padding.Bottom;
+                Style = (Style)resources["Type.Caption"],
+                Text = titleLines == 2 ? "Ag\nAg" : "Ag",
+                TextWrapping = TextWrapping.Wrap,
+                MaxLines = titleLines,
+                XamlRoot = list.XamlRoot,
+            };
+            titleProbe.Measure(new Size((double)resources["Taskbar.Title.Width"], double.PositiveInfinity));
+            var measuredHeights = new List<double>();
+
+            void MeasureItem(FrameworkElement item)
+            {
+                item.Measure(new Size(itemWidth, double.PositiveInfinity));
+                double height = item.DesiredSize.Height;
+                if (FindChild<StackPanel>(item) is StackPanel content)
+                {
+                    foreach (UIElement child in content.Children)
+                    {
+                        if (child is TextBlock title)
+                        {
+                            // Reserve both permitted lines even when the first virtualized title is short.
+                            double contentHeight = content.DesiredSize.Height
+                                + Math.Max(0, titleProbe.DesiredSize.Height - title.DesiredSize.Height);
+                            if ((item as Button ?? FindChild<Button>(item)) is Button button)
+                            {
+                                height = Math.Max(height, contentHeight + button.Margin.Top + button.Margin.Bottom);
+                            }
+                        }
+                    }
+                }
+                measuredHeights.Add(height);
             }
-            // Initial virtualized row uses the same token as the item container; subsequent layouts remeasure it.
-            return (double)Application.Current.Resources["Taskbar.Row.Height"] + list.Padding.Top + list.Padding.Bottom;
+
+            if (list.ItemsPanelRoot is Panel panel)
+            {
+                foreach (UIElement child in panel.Children)
+                {
+                    if (child is ListViewItem item) MeasureItem(item);
+                }
+            }
+            if (measuredHeights.Count == 0 && list.ItemTemplate.LoadContent() is FrameworkElement sample)
+            {
+                sample.XamlRoot = list.XamlRoot;
+                MeasureItem(sample);
+            }
+
+            // D-013: keep the nominal row compact while allowing scaled text to define a taller row.
+            double rowHeight = TaskbarRowSizing.GetRowHeight(measuredHeights, (double)resources["Taskbar.Row.Height"]);
+            // ItemsWrapGrid uses uniform cells: changing only a later item's DesiredSize is insufficient.
+            if (list.ItemsPanelRoot is ItemsWrapGrid wrapGrid) wrapGrid.ItemHeight = rowHeight;
+            return rowHeight + list.Padding.Top + list.Padding.Bottom;
         }
 
         private void UpdateDynamicTaskbarHeight()
