@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using IslandTaskbar.Adapters.Implementations;
 using IslandTaskbar.Controllers;
 using IslandTaskbar.Models;
+using IslandTaskbar.Persistence;
 using IslandTaskbar.Presentation.Windows;
 using IslandTaskbar.Services;
 using IslandTaskbar.ViewModels;
@@ -37,9 +38,14 @@ namespace IslandTaskbar
         protected override async void OnLaunched(LaunchActivatedEventArgs args)
         {
             var dispatcher = DispatcherQueue.GetForCurrentThread();
+            var windows = new WindowManagerService(new Win32WindowSystem());
+            var resolver = new Win32ApplicationResolver();
+            var pins = new PinManagerService(new PinsFileService(), resolver, windows);
+            var applications = new ApplicationLauncherService(pins, new Win32ApplicationLauncher(),
+                new Win32ApplicationSourcePicker(() => _mainWindow?.NativeWindowHandle ?? 0));
             _mainWindow = new IslandWindow(new MusicPrototypeViewModel(
                 new MediaPlaybackService(new WindowsMediaSessionService()), dispatcher),
-                new TaskbarViewModel(new WindowManagerService(new Win32WindowSystem()), dispatcher),
+                new TaskbarViewModel(windows, pins, applications, dispatcher),
                 new IslandViewModel());
             _mainWindow.Closed += OnMainWindowClosed;
             _mainWindow.SurfaceLayoutChanged += OnSurfaceLayoutChanged;
@@ -47,9 +53,11 @@ namespace IslandTaskbar
             try
             {
                 // Manual construction keeps prototype behavior behind the existing adapter boundary.
+                var display = new WindowsAppSdkDisplayService();
+                _mainWindow.SetAvailableDisplayHeight(display.GetPrimaryDisplayBounds().Height);
                 _windowController = new IslandWindowController(
                     new WindowsAppSdkIslandWindowAdapter(_mainWindow),
-                    new WindowsAppSdkDisplayService());
+                    display);
                 _windowController.Initialize();
             }
             catch
@@ -64,7 +72,7 @@ namespace IslandTaskbar
             }
             try { await System.Threading.Tasks.Task.WhenAll(_mainWindow.InitializeTaskbarAsync(CancellationToken.None),
                 _mainWindow.InitializeMediaAsync(CancellationToken.None)); }
-            catch (OperationCanceledException) when (_mainWindow is null)
+            catch (OperationCanceledException) when (_mainWindow is null || _mainWindow.IsClosing)
             {
                 // Normal close cancels a still-pending GSMTC manager request.
             }

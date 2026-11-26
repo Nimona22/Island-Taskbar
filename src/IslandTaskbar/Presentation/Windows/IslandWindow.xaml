@@ -162,15 +162,79 @@
             <Grid x:Name="TaskbarContent" Visibility="Collapsed" Opacity="0"
                   Margin="{StaticResource Taskbar.Content.Margin}" VerticalAlignment="Top"
                   ColumnSpacing="{StaticResource Space.Micro}" KeyDown="OnTaskbarKeyDown">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                <ListView x:Name="RunningWindowsListView" Grid.Column="0" Background="Transparent"
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0" Grid.ColumnSpan="2" Margin="2,0,0,2">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="Pinned" Style="{StaticResource Type.Caption}" Foreground="{StaticResource Music.Text.Primary}"
+                               AutomationProperties.AutomationId="PinnedHeading" />
+                    <Button x:Name="AddApplicationButton" Grid.Column="1" Style="{StaticResource PrototypeIconButton}" Padding="6,2"
+                            Content="Add application…" AutomationProperties.AutomationId="AddApplication"
+                            AutomationProperties.Name="Add application" ToolTipService.ToolTip="Add application" Click="OnAddApplicationClick">
+                        <Button.ContextFlyout><MenuFlyout Opening="OnContextFlyoutOpening" Closed="OnContextFlyoutClosed">
+                            <MenuFlyoutItem Text="Reload pins" Click="OnReloadPinsClick" />
+                        </MenuFlyout></Button.ContextFlyout>
+                    </Button>
+                </Grid>
+                <ListView x:Name="PinnedAppsListView" Grid.Row="1" Grid.ColumnSpan="2" Background="Transparent"
+                          MaxHeight="{StaticResource Taskbar.Row.Height}" SelectionMode="None" IsTabStop="False" ItemsSource="{x:Bind TaskbarState.Pins}"
+                          AutomationProperties.AutomationId="PinnedAppsListView" AutomationProperties.Name="Pinned applications"
+                          ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          ScrollViewer.IsVerticalScrollChainingEnabled="False"
+                          ScrollViewer.VerticalScrollMode="Enabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListView.ItemsPanel><ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="4" HorizontalAlignment="Left" /></ItemsPanelTemplate></ListView.ItemsPanel>
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="IsTabStop" Value="False" /><Setter Property="Padding" Value="0" />
+                            <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
+                            <Setter Property="Width" Value="{StaticResource Taskbar.Item.Extent}" /><Setter Property="Height" Value="{StaticResource Taskbar.Row.Height}" />
+                            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListViewItem"><ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" /></ControlTemplate></Setter.Value></Setter>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="viewModels:PinnedAppItemViewModel">
+                            <Button Style="{StaticResource PrototypeMusicIconButton}" UseSystemFocusVisuals="True"
+                                    Width="{StaticResource Taskbar.Item.Width}" Height="{StaticResource Taskbar.Item.Height}"
+                                    Margin="{StaticResource Taskbar.Item.Margin}" Click="OnPinnedAppClick"
+                                    AutomationProperties.Name="{x:Bind AccessibleName, Mode=OneWay}" AutomationProperties.AutomationId="{x:Bind AutomationId}"
+                                    ToolTipService.ToolTip="{x:Bind AccessibleName, Mode=OneWay}">
+                                <StackPanel Spacing="2" VerticalAlignment="Center" Width="{StaticResource Taskbar.Title.Width}">
+                                    <Grid Width="{StaticResource Taskbar.Icon.Size}" Height="{StaticResource Taskbar.Icon.Size}" HorizontalAlignment="Center">
+                                        <Image Source="{x:Bind Icon, Mode=OneWay}" Visibility="{x:Bind IconVisibility, Mode=OneWay}" />
+                                        <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE737;" Foreground="{StaticResource Music.Text.Secondary}"
+                                                  FontSize="{StaticResource Taskbar.Icon.Size}" Visibility="{x:Bind FallbackVisibility, Mode=OneWay}" />
+                                        <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE718;" FontSize="9"
+                                                  Foreground="{StaticResource Music.Text.Primary}" HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+                                        <TextBlock Text="{x:Bind StateGlyph, Mode=OneWay}" FontSize="9" Margin="0,-2,-8,0"
+                                                   Foreground="{StaticResource Music.Text.Secondary}" HorizontalAlignment="Right" VerticalAlignment="Top" />
+                                    </Grid>
+                                    <TextBlock Text="{x:Bind Title, Mode=OneWay}" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                               Style="{StaticResource Type.Caption}" Foreground="{StaticResource Music.Text.Primary}" TextAlignment="Center" />
+                                </StackPanel>
+                                <Button.ContextFlyout>
+                                    <MenuFlyout Opening="OnContextFlyoutOpening" Closed="OnContextFlyoutClosed">
+                                        <MenuFlyoutItem Text="Retry availability" Tag="{x:Bind}" Click="OnRetryAvailabilityClick" />
+                                        <MenuFlyoutItem Text="Move earlier" Tag="{x:Bind}" Click="OnMoveEarlierClick" />
+                                        <MenuFlyoutItem Text="Move later" Tag="{x:Bind}" Click="OnMoveLaterClick" />
+                                        <MenuFlyoutItem Text="Unpin" Tag="{x:Bind}" Click="OnUnpinClick" />
+                                    </MenuFlyout>
+                                </Button.ContextFlyout>
+                            </Button>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+                <Border Grid.Row="2" Grid.ColumnSpan="2" Height="1" Margin="0,5" Background="{StaticResource Border.Subtle}" />
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Open windows" Margin="2,0,0,2" Style="{StaticResource Type.Caption}"
+                           Foreground="{StaticResource Music.Text.Primary}" AutomationProperties.AutomationId="OpenWindowsHeading" />
+                <ListView x:Name="RunningWindowsListView" Grid.Row="4" Grid.Column="0" Background="Transparent"
                           MaxHeight="{StaticResource Taskbar.List.MaxHeight}" SelectionMode="None" IsTabStop="False"
                           ItemsSource="{x:Bind TaskbarState.Windows}"
                           AutomationProperties.AutomationId="RunningWindowsListView" AutomationProperties.Name="Running application windows"
                           ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          ScrollViewer.IsVerticalScrollChainingEnabled="False"
                           ScrollViewer.VerticalScrollMode="Enabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListView.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -182,7 +246,7 @@
                             <Setter Property="IsTabStop" Value="False" /><Setter Property="Padding" Value="0" />
                             <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
                             <Setter Property="Width" Value="{StaticResource Taskbar.Item.Extent}" />
-                            <Setter Property="Height" Value="50" />
+                            <Setter Property="MinHeight" Value="{StaticResource Taskbar.Row.Height}" />
                             <Setter Property="Template">
                                 <Setter.Value><ControlTemplate TargetType="ListViewItem">
                                     <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" />
@@ -193,7 +257,7 @@
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="viewModels:RunningWindowItemViewModel">
                             <Button Style="{StaticResource PrototypeMusicIconButton}" UseSystemFocusVisuals="True"
-                                    Width="{StaticResource Taskbar.Item.Width}" Height="{StaticResource Taskbar.Item.Height}"
+                                    Width="{StaticResource Taskbar.Item.Width}" MinHeight="{StaticResource Taskbar.Item.Height}"
                                     Margin="{StaticResource Taskbar.Item.Margin}" Click="OnRunningWindowClick"
                                     AutomationProperties.Name="{x:Bind AccessibleName, Mode=OneWay}"
                                     AutomationProperties.AutomationId="{x:Bind AutomationId}"
@@ -205,16 +269,21 @@
                                                   Foreground="{StaticResource Music.Text.Secondary}" FontSize="{StaticResource Taskbar.Icon.Size}"
                                                   Visibility="{x:Bind FallbackVisibility, Mode=OneWay}" />
                                     </Grid>
-                                    <TextBlock Text="{x:Bind Title, Mode=OneWay}" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                    <TextBlock Text="{x:Bind Title, Mode=OneWay}" MaxLines="2" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
                                                Style="{StaticResource Type.Caption}" Foreground="{StaticResource Music.Text.Primary}" TextAlignment="Center" />
                                     <Border Width="{x:Bind IndicatorWidth, Mode=OneWay}" Height="3"
                                             Background="{x:Bind IndicatorBrush, Mode=OneWay}" CornerRadius="{StaticResource Radius.Control}" HorizontalAlignment="Center" />
                                 </StackPanel>
+                                <Button.ContextFlyout>
+                                    <MenuFlyout Opening="OnWindowFlyoutOpening" Closed="OnContextFlyoutClosed">
+                                        <MenuFlyoutItem Text="Pin application" Tag="{x:Bind}" IsEnabled="False" Click="OnPinWindowClick" />
+                                    </MenuFlyout>
+                                </Button.ContextFlyout>
                             </Button>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Top" Margin="4,8,0,0">
+                <StackPanel Grid.Row="3" Grid.Column="1" Grid.RowSpan="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Top" Margin="4,0,0,0">
                     <Button Grid.Column="0" Style="{StaticResource PrototypeMusicIconButton}" Width="{StaticResource Music.Collapse.Size}"
                             Height="{StaticResource Music.Control.Height}" VerticalAlignment="Center"
                             IsEnabled="{x:Bind MusicState.HasSession, Mode=OneWay}" Foreground="{StaticResource Music.Text.Primary}"
@@ -229,8 +298,8 @@
                         <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE70E;" FontSize="{StaticResource Type.Caption.Size}" />
                     </Button>
                 </StackPanel>
-                <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="4,2,0,0" Text="{x:Bind TaskbarState.StatusText, Mode=OneWay}"
-                           Visibility="{x:Bind TaskbarState.StatusVisibility, Mode=OneWay}" TextTrimming="CharacterEllipsis"
+                <TextBlock Grid.Row="5" Grid.ColumnSpan="2" VerticalAlignment="Bottom" Margin="4,2,0,0" Text="{x:Bind TaskbarState.StatusText, Mode=OneWay}"
+                           Visibility="{x:Bind TaskbarState.StatusVisibility, Mode=OneWay}" TextWrapping="Wrap"
                            Style="{StaticResource Type.Caption}" Foreground="{StaticResource Music.Text.Primary}"
                            AutomationProperties.AutomationId="TaskbarStatus" AutomationProperties.LiveSetting="Polite" />
             </Grid>

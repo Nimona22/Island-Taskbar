@@ -14,6 +14,7 @@ namespace IslandTaskbar.Controllers
         private bool _isInitialized;
         private bool _isDisposed;
         private double _hostScale = 1;
+        private int _hostHeight = (int)IslandPrototypeGeometry.HostHeight;
 
         internal IslandWindowController(IIslandWindowAdapter windowAdapter, IDisplayService displayService)
         {
@@ -69,6 +70,7 @@ namespace IslandTaskbar.Controllers
                 || !double.IsFinite(layout.Width) || !double.IsFinite(layout.Height)
                 || !double.IsFinite(layout.LowerCornerRadius) || layout.LowerCornerRadius < 0
                 || !double.IsFinite(layout.UpperCornerRadius) || layout.UpperCornerRadius < 0
+                || layout.HostHeight is { } requestedHostHeight && (!double.IsFinite(requestedHostHeight) || requestedHostHeight < layout.Height)
                 || layout.Width <= 0 || layout.Height <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(layout), "The surface layout must be finite and positive.");
@@ -76,16 +78,19 @@ namespace IslandTaskbar.Controllers
 
             // Convert the actual WinUI geometry once at the adapter boundary, not with a second UI scale.
             double scale = layout.RasterizationScale;
-            if (scale != _hostScale)
+            var displayBounds = _displayService.GetPrimaryDisplayBounds();
+            int requestedHeight = Math.Min(checked((int)Math.Ceiling((layout.HostHeight ?? IslandPrototypeGeometry.HostHeight) * scale)), displayBounds.Height);
+            if (scale != _hostScale || requestedHeight != _hostHeight)
             {
-                var displayBounds = _displayService.GetPrimaryDisplayBounds();
+                bool widthChanged = scale != _hostScale;
                 int hostWidth = Math.Min(checked((int)Math.Ceiling(IslandPrototypeGeometry.HostWidth * scale)), displayBounds.Width);
-                int hostHeight = Math.Min(checked((int)Math.Ceiling(IslandPrototypeGeometry.HostHeight * scale)), displayBounds.Height);
+                int hostHeight = Math.Min(requestedHeight, displayBounds.Height);
                 _hostScale = scale;
+                _hostHeight = hostHeight;
                 _windowAdapter.MoveAndResize(displayBounds.X + (displayBounds.Width - hostWidth) / 2,
                     displayBounds.Y, hostWidth, hostHeight);
-                // The changed host size triggers a new measured layout before installing the region.
-                return;
+                // A changed width needs a new centered measurement. Height-only growth keeps the same origin.
+                if (widthChanged) return;
             }
             int left = checked((int)Math.Round(layout.Left * scale));
             int top = checked((int)Math.Round(layout.Top * scale));

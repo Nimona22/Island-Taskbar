@@ -10,7 +10,7 @@ namespace IslandTaskbar.Models
     {
         internal IslandSurfaceLayoutEventArgs(double left, double top, double width, double height,
             double lowerCornerRadius, double rasterizationScale, double upperCornerRadius = 0,
-            IReadOnlyList<IslandSurfacePoint>? outline = null)
+            IReadOnlyList<IslandSurfacePoint>? outline = null, double? hostHeight = null)
         {
             Left = left;
             Top = top;
@@ -20,6 +20,7 @@ namespace IslandTaskbar.Models
             UpperCornerRadius = upperCornerRadius;
             RasterizationScale = rasterizationScale;
             Outline = outline;
+            HostHeight = hostHeight;
         }
 
         internal double Left { get; }
@@ -30,5 +31,6 @@ namespace IslandTaskbar.Models
         internal double UpperCornerRadius { get; }
         internal double RasterizationScale { get; }
         internal IReadOnlyList<IslandSurfacePoint>? Outline { get; }
+        internal double? HostHeight { get; }
     }
 }

@@ -75,11 +75,18 @@ namespace IslandTaskbar.Presentation.Windows
         private bool _isContextMenuOpen;
         private bool _wasMouseDown;
         private bool _openedByKeyboard;
+        private bool _allowClose;
+        private bool _closing;
+        private bool _measuringTaskbar;
+        private bool _taskbarMeasureDirty = true;
+        private double _availableDisplayPixels = double.PositiveInfinity;
 
         internal event EventHandler<IslandSurfaceLayoutEventArgs>? SurfaceLayoutChanged;
         internal MusicPrototypeViewModel MusicState { get; }
         internal TaskbarViewModel TaskbarState { get; }
         internal IslandViewModel IslandState { get; }
+        internal nint NativeWindowHandle => _windowHandle;
+        internal bool IsClosing => _closing;
 
         internal IslandWindow(MusicPrototypeViewModel musicState, TaskbarViewModel taskbarState, IslandViewModel islandState)
         {
@@ -136,6 +143,7 @@ namespace IslandTaskbar.Presentation.Windows
                 IllustrativeWaveform.Children.Add(waveBar);
             }
             _windowHandle = WindowNative.GetWindowHandle(this);
+            AppWindow.Closing += OnAppWindowClosing;
             _transitionTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.0 / 60) };
             _transitionTimer.Tick += OnTransitionTick;
             _autoDismissTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
@@ -163,12 +171,26 @@ namespace IslandTaskbar.Presentation.Windows
             MusicState.MediaStateChanged += OnMediaStateChanged;
             IslandState.PropertyChanged += OnModeChanged;
             TaskbarState.Windows.CollectionChanged += OnRunningWindowsChanged;
+            TaskbarState.Pins.CollectionChanged += OnPinsChanged;
             TaskbarState.PropertyChanged += OnTaskbarStateChanged;
+            RunningWindowsListView.ContainerContentChanging += OnContainerContentChanging;
             ApplyProgress(0);
         }
 
         internal Task InitializeMediaAsync(CancellationToken cancellationToken) => MusicState.InitializeAsync(cancellationToken);
         internal Task InitializeTaskbarAsync(CancellationToken cancellationToken) => TaskbarState.InitializeAsync(cancellationToken);
+
+        internal void SetAvailableDisplayHeight(double pixels) => _availableDisplayPixels = pixels;
+
+        private async void OnAppWindowClosing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
+        {
+            if (_allowClose) return;
+            args.Cancel = true;
+            if (_closing) return;
+            _closing = true;
+            try { await TaskbarState.DisposeAsync(); }
+            finally { _allowClose = true; Close(); }
+        }
 
         private void OnMediaStateChanged(object? sender, EventArgs e)
         {
@@ -201,9 +223,25 @@ namespace IslandTaskbar.Presentation.Windows
             EvaluateAutoDismiss();
         }
 
+        private async void OnWindowFlyoutOpening(object? sender, object e)
+        {
+            OnContextFlyoutOpening(sender, e);
+            if (sender is MenuFlyout flyout && flyout.Items[0] is MenuFlyoutItem { Tag: RunningWindowItemViewModel window } action)
+            {
+                action.IsEnabled = false;
+                action.Text = "Checking application…";
+                action.Visibility = Visibility.Visible;
+                bool canPin = await TaskbarState.CanPinWindowAsync(window);
+                if (_isClosed || _closing) return;
+                action.IsEnabled = canPin;
+                action.Text = canPin ? "Pin application" : "Pinning unavailable for this window";
+            }
+        }
+
         private void OnModeChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (_isClosed || e.PropertyName != nameof(IslandViewModel.Mode)) return;
+            _taskbarMeasureDirty = true;
             if (IslandState.Mode != IslandMode.Idle)
             {
                 _expandedMode = IslandState.Mode;
@@ -470,10 +508,11 @@ namespace IslandTaskbar.Presentation.Windows
 
         private void OnSurfaceLayoutUpdated(object? sender, object e)
         {
+            if (_taskbarMeasureDirty && TaskbarContent.Visibility == Visibility.Visible) UpdateDynamicTaskbarHeight();
             ReportSurfaceLayout();
         }
         private void OnRootSizeChanged(object sender, SizeChangedEventArgs e) { _surfaceLayoutDirty = true; }
-        private void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs e) { _surfaceLayoutDirty = true; }
+        private void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs e) { _surfaceLayoutDirty = true; _taskbarMeasureDirty = true; }
 
         private void ReportSurfaceLayout()
         {
@@ -488,12 +527,14 @@ namespace IslandTaskbar.Presentation.Windows
             double currentRadius = Lerp(_notchRadius, _expandedRadius, _progress);
             var layout = new IslandSurfaceLayoutEventArgs(position.X, position.Y,
                 IslandSurface.ActualWidth, IslandSurface.ActualHeight, currentRadius,
-                IslandSurface.XamlRoot.RasterizationScale, 0, _surfaceOutline);
+                IslandSurface.XamlRoot.RasterizationScale, 0, _surfaceOutline,
+                _expandedMode == IslandMode.Taskbar ? Math.Max(IslandSurface.ActualHeight, _expandedHeight) : null);
             if (_lastLayout is not null && layout.Left == _lastLayout.Left && layout.Top == _lastLayout.Top
                 && layout.Width == _lastLayout.Width && layout.Height == _lastLayout.Height
                 && layout.UpperCornerRadius == _lastLayout.UpperCornerRadius
                 && layout.LowerCornerRadius == _lastLayout.LowerCornerRadius
                 && layout.RasterizationScale == _lastLayout.RasterizationScale
+                && layout.HostHeight == _lastLayout.HostHeight
                 && ReferenceEquals(layout.Outline, _lastLayout.Outline))
             {
                 return;
@@ -527,12 +568,15 @@ namespace IslandTaskbar.Presentation.Windows
         private void OnPrototypeClosed(object sender, WindowEventArgs args)
         {
             _isClosed = true;
+            AppWindow.Closing -= OnAppWindowClosing;
             Bindings.StopTracking();
             MusicState.MediaStateChanged -= OnMediaStateChanged;
             MusicState.Dispose();
             IslandState.PropertyChanged -= OnModeChanged;
             TaskbarState.Windows.CollectionChanged -= OnRunningWindowsChanged;
+            TaskbarState.Pins.CollectionChanged -= OnPinsChanged;
             TaskbarState.PropertyChanged -= OnTaskbarStateChanged;
+            RunningWindowsListView.ContainerContentChanging -= OnContainerContentChanging;
             TaskbarState.Dispose();
             _autoDismissTimer.Stop();
             _autoDismissTimer.Tick -= OnAutoDismissTick;
@@ -574,33 +618,130 @@ namespace IslandTaskbar.Presentation.Windows
             }
         }
 
+        private async void OnPinnedAppClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { DataContext: PinnedAppItemViewModel pin })
+                await TaskbarState.LaunchAsync(pin);
+        }
+
+        private async void OnAddApplicationClick(object sender, RoutedEventArgs e) => await TaskbarState.AddApplicationAsync();
+        private async void OnReloadPinsClick(object sender, RoutedEventArgs e) => await TaskbarState.ReloadPinsAsync();
+        private async void OnUnpinClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { Tag: PinnedAppItemViewModel pin })
+            {
+                await TaskbarState.UnpinAsync(pin);
+                if (!_isClosed && !_closing) AddApplicationButton.Focus(FocusState.Keyboard);
+            }
+        }
+        private async void OnMoveEarlierClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { Tag: PinnedAppItemViewModel pin }) { await TaskbarState.MoveAsync(pin, -1); FocusPin(pin); }
+        }
+        private async void OnMoveLaterClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { Tag: PinnedAppItemViewModel pin }) { await TaskbarState.MoveAsync(pin, 1); FocusPin(pin); }
+        }
+        private async void OnRetryAvailabilityClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { Tag: PinnedAppItemViewModel pin }) await TaskbarState.RetryAvailabilityAsync(pin);
+        }
+        private async void OnPinWindowClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { Tag: RunningWindowItemViewModel window }) await TaskbarState.PinWindowAsync(window);
+        }
+
         private void OnRunningWindowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            UpdateDynamicTaskbarHeight();
+            _taskbarMeasureDirty = true;
+            WindowRoot.InvalidateMeasure();
+        }
+
+        private void OnPinsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            _taskbarMeasureDirty = true;
+            WindowRoot.InvalidateMeasure();
+        }
+
+        private void OnContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+        {
+            if (!args.InRecycleQueue) _taskbarMeasureDirty = true;
         }
 
         private void OnTaskbarStateChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(TaskbarViewModel.StatusVisibility))
             {
-                UpdateDynamicTaskbarHeight();
+                _taskbarMeasureDirty = true;
+                WindowRoot.InvalidateMeasure();
+            }
+            else if (e.PropertyName == nameof(TaskbarViewModel.PickerActive))
+            {
+                if (TaskbarState.PickerActive) _autoDismissTimer.Stop(); else EvaluateAutoDismiss();
             }
         }
 
         private double CalculateTaskbarHeight()
         {
-            int rows = Math.Clamp((int)Math.Ceiling(Math.Max(1, TaskbarState.Windows.Count) / 4.0), 1, 3);
-            double baseHeight = 14 + rows * 50;
-            double statusExtra = TaskbarState.StatusVisibility == Visibility.Visible ? 18 : 0;
-            return baseHeight + statusExtra;
+            // D-013: measure headings, feedback and actual item containers before budgeting either viewport.
+            double width = IslandPrototypeGeometry.TaskbarWidth - TaskbarContent.Margin.Left - TaskbarContent.Margin.Right;
+            double scale = IslandSurface.XamlRoot?.RasterizationScale ?? 1;
+            double available = _availableDisplayPixels / scale;
+            double windowRow = MeasureItemRow(RunningWindowsListView);
+            double pinRow = MeasureItemRow(PinnedAppsListView);
+            PinnedAppsListView.MaxHeight = pinRow;
+            RunningWindowsListView.MaxHeight = windowRow * 3;
+            TaskbarContent.Measure(new Size(width, double.PositiveInfinity));
+            double desired = TaskbarContent.DesiredSize.Height;
+            double chrome = desired - PinnedAppsListView.DesiredSize.Height - RunningWindowsListView.DesiredSize.Height;
+            double viewportBudget = Math.Max(0, available - chrome);
+            double pins = Math.Min(PinnedAppsListView.DesiredSize.Height, pinRow);
+            double windows = Math.Min(RunningWindowsListView.DesiredSize.Height, windowRow * 3);
+            if (pins + windows > viewportBudget)
+            {
+                double pinMinimum = TaskbarState.Pins.Count > 0 ? Math.Min(pinRow, pins) : pins;
+                double windowMinimum = TaskbarState.Windows.Count > 0 ? Math.Min(windowRow, windows) : windows;
+                double minimum = pinMinimum + windowMinimum;
+                if (minimum > viewportBudget && minimum > 0)
+                {
+                    pins = viewportBudget * pinMinimum / minimum;
+                    windows = viewportBudget - pins;
+                }
+                else
+                {
+                    pins = pinMinimum;
+                    windows = Math.Min(windows, Math.Max(windowMinimum, viewportBudget - pins));
+                }
+            }
+            PinnedAppsListView.MaxHeight = pins + windows < viewportBudget ? pinRow : Math.Max(0, pins);
+            RunningWindowsListView.MaxHeight = pins + windows < viewportBudget ? windowRow * 3 : Math.Max(0, windows);
+            TaskbarContent.Measure(new Size(width, double.PositiveInfinity));
+            return Math.Max(IslandPrototypeGeometry.NotchHeight, Math.Min(available, TaskbarContent.DesiredSize.Height));
+        }
+
+        private static double MeasureItemRow(ListView list)
+        {
+            if (list.Items.Count > 0 && (list.ContainerFromIndex(0) as FrameworkElement ?? FindChild<ListViewItem>(list)) is FrameworkElement item)
+            {
+                item.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                return item.DesiredSize.Height + list.Padding.Top + list.Padding.Bottom;
+            }
+            // Initial virtualized row uses the same token as the item container; subsequent layouts remeasure it.
+            return (double)Application.Current.Resources["Taskbar.Row.Height"] + list.Padding.Top + list.Padding.Bottom;
         }
 
         private void UpdateDynamicTaskbarHeight()
         {
-            if (_isClosed || IslandState.Mode != IslandMode.Taskbar) return;
-            double nextHeight = CalculateTaskbarHeight();
+            if (_isClosed || IslandState.Mode != IslandMode.Taskbar || _measuringTaskbar) return;
+            _measuringTaskbar = true;
+            _taskbarMeasureDirty = false;
+            double nextHeight;
+            try { nextHeight = CalculateTaskbarHeight(); }
+            finally { _measuringTaskbar = false; }
             if (Math.Abs(nextHeight - _expandedHeight) < 0.5) return;
             _expandedHeight = nextHeight;
+            _surfaceLayoutDirty = true;
+            WindowRoot.InvalidateMeasure();
             if (!_isTransitioning)
             {
                 ApplyProgress(_progress);
@@ -671,7 +812,7 @@ namespace IslandTaskbar.Presentation.Windows
         private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
         {
             if (_isClosed || args.WindowActivationState != WindowActivationState.Deactivated) return;
-            if (_isExpanded && IslandState.Mode == IslandMode.Taskbar && !_isPointerPressedInside && !_isContextMenuOpen)
+            if (_isExpanded && IslandState.Mode == IslandMode.Taskbar && !_isPointerPressedInside && !_isContextMenuOpen && !TaskbarState.PickerActive)
             {
                 IslandState.Collapse();
             }
@@ -681,7 +822,7 @@ namespace IslandTaskbar.Presentation.Windows
         {
             _autoDismissTimer.Stop();
             if (_isClosed || IslandState.Mode != IslandMode.Taskbar) return;
-            if (_isPointerInside || _isPointerPressedInside || _hasKeyboardFocusInside || _isContextMenuOpen) return;
+            if (_isPointerInside || _isPointerPressedInside || _hasKeyboardFocusInside || _isContextMenuOpen || TaskbarState.PickerActive) return;
             IslandState.Collapse();
         }
 
@@ -725,12 +866,17 @@ namespace IslandTaskbar.Presentation.Windows
                 }
             }
 
-            if (!newPress || nowInside || _isPointerPressedInside || _isContextMenuOpen) return;
+            if (!newPress || nowInside || _isPointerPressedInside || _isContextMenuOpen || TaskbarState.PickerActive) return;
             IslandState.Collapse();
         }
 
         private void EvaluateAutoDismiss()
         {
+            if (TaskbarState.PickerActive)
+            {
+                _autoDismissTimer.Stop();
+                return;
+            }
             if (_isClosed || IslandState.Mode != IslandMode.Taskbar)
             {
                 _autoDismissTimer.Stop();
@@ -760,6 +906,19 @@ namespace IslandTaskbar.Presentation.Windows
         private void OnTaskbarKeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (e.Key is not (VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down or VirtualKey.Home or VirtualKey.End)) return;
+            if (e.OriginalSource is FrameworkElement { DataContext: PinnedAppItemViewModel pin })
+            {
+                int pinIndex = TaskbarState.Pins.IndexOf(pin);
+                pinIndex = e.Key switch
+                {
+                    VirtualKey.Left => pinIndex - 1, VirtualKey.Right => pinIndex + 1,
+                    VirtualKey.Up => pinIndex - 4, VirtualKey.Down => pinIndex + 4,
+                    VirtualKey.Home => 0, _ => TaskbarState.Pins.Count - 1
+                };
+                if (TaskbarState.Pins.Count > 0) FocusPin(TaskbarState.Pins[Math.Clamp(pinIndex, 0, TaskbarState.Pins.Count - 1)]);
+                e.Handled = true;
+                return;
+            }
             if (e.OriginalSource is not FrameworkElement { DataContext: RunningWindowItemViewModel entry }) return;
             _hasKeyboardFocusInside = true;
             _autoDismissTimer.Stop();
@@ -779,8 +938,20 @@ namespace IslandTaskbar.Presentation.Windows
 
         private void FocusExpandedContent()
         {
-            if (_expandedMode == IslandMode.Taskbar) FocusRunningWindow(0);
+            if (_expandedMode == IslandMode.Taskbar) AddApplicationButton.Focus(FocusState.Keyboard);
             else PlayPauseButton.Focus(FocusState.Programmatic);
+        }
+
+        private void FocusPin(PinnedAppItemViewModel pin)
+        {
+            if (_isClosed || _closing || !TaskbarState.Pins.Contains(pin)) return;
+            PinnedAppsListView.ScrollIntoView(pin, ScrollIntoViewAlignment.Default);
+            DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+            {
+                if (_isClosed || _closing) return;
+                if (PinnedAppsListView.ContainerFromItem(pin) is DependencyObject container)
+                    FindChild<Button>(container)?.Focus(FocusState.Keyboard);
+            });
         }
 
         private void FocusRunningWindow(int index)
